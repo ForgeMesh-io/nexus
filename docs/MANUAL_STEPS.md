@@ -8,7 +8,7 @@ Things that cannot (or must not) be automated by an agent. Tick them in a tracki
 - [ ] Find two other root key holders and a second maintainer (bus factor).
 - [ ] Organisation: keep 2FA required; review members and outside collaborators quarterly.
 - [ ] Create a `maintainers` team when there is more than one maintainer and switch CODEOWNERS to it.
-- [ ] Configure required reviewers on the `release` environment of `nexus` (image publishing).
+- [ ] Configure required reviewers on the `release` environment of `nexus` and restrict deployments to `v*` tags. The image workflow runs CI on the tagged commit before the approval gate. Do not create or dispatch a release tag until the environment is configured.
 
 ## Every swarm repository
 
