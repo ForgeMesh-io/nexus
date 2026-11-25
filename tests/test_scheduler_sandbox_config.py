@@ -49,6 +49,14 @@ def test_recommend_prefers_blockers_and_priority():
     assert rec["claim"][0] == "NX-0002"
 
 
+def test_recommend_falls_back_to_claims_when_the_validation_queue_is_ineligible():
+    events = base(task(), task("NX-0002"), validation_pressure={"dev_share_low": 0})
+    state = fold(events + [ev("claim", task="NX-0001"), submit()])
+    rec = scheduler.recommend(state, "alice", set())
+    assert rec["mode"] == "develop"
+    assert rec["claim"] == ["NX-0002"] and rec["validate"] == []
+
+
 # ---- commands (untrusted input) ---------------------------------------------
 
 def test_parser_is_strict():

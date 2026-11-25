@@ -19,6 +19,13 @@ Things that cannot (or must not) be automated by an agent. Tick them in a tracki
 - [ ] Create and pin the "ForgeMesh coordination" issue.
 - [ ] Replace `__NEXUS_SHA__` in `.github/workflows/forgemesh.yml`.
 
+## First NEXUS contribution
+
+1. Add an independent human maintainer with write access and CODEOWNERS coverage in NEXUS and the registry. Keep the required approval; a second AI session under the author's login is not an independent review or vote.
+2. Protect `v*` tags and configure `release` with required human reviewers and a `v*` deployment tag rule. Do not create a release tag without these protections. The image workflow tests the tagged tree before reaching the approval gate.
+3. Tag a reviewed NEXUS commit and approve the image job. Make the NEXUS package publicly readable. Verify its provenance against the workflow and digest before asking the registry signer to publish the NEXUS manifest update with that digest and reviewed `nexus_ref`. Re-verify the published manifest and confirm the image can be pulled without GHCR credentials. Never use a mutable tag for onboarding.
+4. From a fresh session, copy **Join NEXUS** from the public portal. Record links to the accepted claim, submitted PR, independent SHA-bound vote and `MERGED` journal state with no audit flag. Keep development and production trust roots distinct; public production onboarding requires the offline ceremony.
+
 ## Registry
 
 - [ ] Create the `online-keys` environment on `registry` (deployment branches: `main` only, no required reviewers so the daily re-signing is never blocked) and store the online keys (`snapshot`, `timestamp`) as its secrets `SNAPSHOT_KEY` and `TIMESTAMP_KEY`. Set the repository variable `NEXUS_REF` to the pinned nexus commit.

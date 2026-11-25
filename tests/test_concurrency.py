@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from forgemesh import scheduler
 from forgemesh.coordinator import Coordinator
 from forgemesh.core import fmt_time, fold
 from forgemesh.journal import PushRejected, Store
@@ -174,3 +175,39 @@ def test_submission_flow_with_pr_and_prompt_injection(tmp_path, remote):
     c.run()
     _, state = final_state(tmp_path, remote)
     assert state.tasks["NX-0001"].status == "MERGED" and state.tasks["NX-0001"].submission["audit"]
+
+
+def test_starting_swarm_routes_the_second_participant_to_an_independent_merge(tmp_path, remote):
+    gh = FakeGitHub()
+    now = T0 + timedelta(minutes=5)
+    policy = {**POLICY, "validation_pressure": {"dev_share_low": 1.0}}
+    c = Coordinator(gh, clone(tmp_path, remote, "coordinator"), policy, [task(6)], now=lambda: now)
+    c.run()
+    _, state = final_state(tmp_path, remote)
+    assert scheduler.recommend(state, "alice", set())["claim"] == ["NX-0006"]
+
+    sha = "c" * 40
+    gh.post("alice", 1, "/fm claim NX-0006", fmt_time(now))
+    gh.open_pr(7, "alice", sha)
+    gh.post("alice", 1, "/fm submit NX-0006 #7", fmt_time(now))
+    gh.post("alice", 7, f"/fm vote NX-0006 pass {sha} https://example.org/self", fmt_time(now))
+    c.run()
+    _, state = final_state(tmp_path, remote)
+    assert state.tasks["NX-0006"].status == "SUBMITTED"
+    assert not state.decisions[-1]["accepted"]
+    assert scheduler.recommend(state, "alice", set())["validate"] == []
+    rec = scheduler.recommend(state, "bob", set())
+    assert rec["mode"] == "validate"
+    assert rec["validate"] == ["NX-0006"] and rec["claim"] == []
+
+    gh.post("bob", 7, f"/fm vote NX-0006 pass {sha} https://example.org/independent", fmt_time(now))
+    c.run()
+    _, state = final_state(tmp_path, remote)
+    assert state.tasks["NX-0006"].status == "READY_TO_MERGE"
+    assert state.tasks["NX-0006"].votes["bob"]["sha"] == sha
+
+    gh.prs[7].update(merged=True, state="closed")
+    c.run()
+    _, state = final_state(tmp_path, remote)
+    assert state.tasks["NX-0006"].status == "MERGED"
+    assert state.tasks["NX-0006"].submission["audit"] == []

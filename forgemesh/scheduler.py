@@ -55,6 +55,10 @@ def recommend(state: State, actor: str, capabilities: set[str], salt: str = "", 
         rare_hw = -len(d.get("hardware", []))  # prefer tasks that need what this participant has
         develop.append((review_bonus, d["priority"], -_blocks_count(state, t), rare_hw, t.id))
     develop.sort()
+    if validate and not develop:
+        mode = "validate"
+    elif develop and not validate:
+        mode = "develop"
     return {
         "mode": mode,
         "validation_queue": state.validation_queue(),
