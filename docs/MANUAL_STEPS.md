@@ -8,7 +8,7 @@ Things that cannot (or must not) be automated by an agent. Tick them in a tracki
 - [ ] Find two other root key holders and a second maintainer (bus factor).
 - [ ] Organisation: keep 2FA required; review members and outside collaborators quarterly.
 - [ ] Create a `maintainers` team when there is more than one maintainer and switch CODEOWNERS to it.
-- [ ] Configure required reviewers on the `release` environment of `nexus` and `registry`.
+- [ ] Configure required reviewers on the `release` environment of `nexus` (image publishing).
 
 ## Every swarm repository
 
@@ -21,7 +21,7 @@ Things that cannot (or must not) be automated by an agent. Tick them in a tracki
 
 ## Registry
 
-- [ ] Store the online keys (`snapshot`, `timestamp`) as secrets of the `registry` repository's `release` environment only.
+- [ ] Create the `online-keys` environment on `registry` (deployment branches: `main` only, no required reviewers so the daily re-signing is never blocked) and store the online keys (`snapshot`, `timestamp`) as its secrets `SNAPSHOT_KEY` and `TIMESTAMP_KEY`. Set the repository variable `NEXUS_REF` to the pinned nexus commit.
 - [ ] Check that the scheduled refresh runs; timestamp metadata expires after 2 days.
 
 ## ORBIS

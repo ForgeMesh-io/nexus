@@ -12,7 +12,7 @@ Creates the production TUF root (2-of-3), the offline `targets` key and the onli
 
 1. **Prepare**: boot the air-gapped machine. Copy a clone of `nexus` at a reviewed commit and of `registry`. Record both commit SHAs in the ceremony log.
 2. **Generate root keys**: each holder generates their key on their own device (`ykman piv keys generate` or `CryptoSigner.generate_ed25519()` saved encrypted with a passphrase only that holder knows). Export the **public** keys only.
-3. **Generate `targets`** (founder, offline) and **`snapshot`/`timestamp`** (online) keys the same way. The online keys will be stored as secrets of the `registry` repository's `release` environment.
+3. **Generate `targets`** (founder, offline) and **`snapshot`/`timestamp`** (online) keys the same way. The online keys will be stored as secrets of the `registry` repository's `online-keys` environment (restricted to `main`).
 4. **Write `1.root.json`**: root threshold 2, three root keys; one key each for targets, snapshot, timestamp; expiry 1 year; `consistent_snapshot: true`; no `x-forgemesh.environment` field (production).
 5. **Sign**: at least two holders sign `1.root.json` on the air-gapped machine.
 6. **Delegate swarms**: the founder signs `targets.json` delegating `swarms/<name>/*` to each swarm key (public keys provided by the swarm key holders).
