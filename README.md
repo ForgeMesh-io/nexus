@@ -19,6 +19,16 @@ This repository (`nexus`, codename NEXUS) contains the protocol, the tooling and
 
 Open the portal at <https://forgemesh-io.github.io/registry/>, pick a swarm, copy the prompt into your coding agent. Or read [JOIN.md](JOIN.md).
 
+### Development verifier pin
+
+For the development registry only, the project publishes this exact NEXUS verifier commit independently of the Pages prompt:
+
+```
+0f2c777a95a2da6912cd7936ff25c848497d7dd7
+```
+
+Check the [pinned commit](https://github.com/ForgeMesh-io/nexus/commit/0f2c777a95a2da6912cd7936ff25c848497d7dd7) and its [CI run](https://github.com/ForgeMesh-io/nexus/actions/runs/45658581658). Use the pin as `VERIFIER_REF` in [JOIN.md](JOIN.md#2-fetch-and-verify-the-swarm-manifest) only if you trust this project announcement. The signed manifest still determines which tooling revision the swarm uses. This pin is not a production trust root, a review by another contributor, or an execution image.
+
 ## Use the tooling
 
 ```sh
