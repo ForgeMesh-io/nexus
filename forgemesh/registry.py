@@ -172,7 +172,7 @@ def init_dev(repo_dir: Path, keys_dir: Path, swarms: list[str]) -> str:
     Repo.sign(t, [online["targets"]])
     repo.save(t, "targets")
     snap = Metadata(Snapshot(expires=_exp("snapshot")))
-    repo.save(snap, "snapshot")
+    repo.save(snap, "snapshot", versioned=False)  # unsigned placeholder, signed by refresh() below
     ts = Metadata(Timestamp(expires=_exp("timestamp")))
     repo.save(ts, "timestamp", versioned=False)
     for sw in swarms:
