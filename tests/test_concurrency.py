@@ -10,10 +10,11 @@ import random
 import subprocess
 import threading
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
-from forgemesh import scheduler
+from forgemesh import config, scheduler
 from forgemesh.__main__ import main
 from forgemesh.coordinator import Coordinator
 from forgemesh.core import fmt_time, fold
@@ -182,10 +183,12 @@ def test_starting_swarm_routes_the_second_participant_to_an_independent_merge(tm
     gh = FakeGitHub()
     now = T0 + timedelta(minutes=5)
     policy = {**POLICY, "validation_pressure": {"dev_share_low": 1.0}}
-    c = Coordinator(gh, clone(tmp_path, remote, "coordinator"), policy, [task(6)], now=lambda: now)
+    _, tasks = config.load(Path(__file__).resolve().parents[1])
+    pilot = next(t for t in tasks if t["id"] == "NX-0006")
+    c = Coordinator(gh, clone(tmp_path, remote, "coordinator"), policy, [pilot], now=lambda: now)
     c.run()
     reader, state = final_state(tmp_path, remote)
-    assert scheduler.recommend(state, "alice", set())["claim"] == ["NX-0006"]
+    assert scheduler.recommend(state, "alice", set(), no_execution=True)["claim"] == ["NX-0006"]
 
     sha = "c" * 40
     gh.post("alice", 1, "/fm claim NX-0006", fmt_time(now))
@@ -201,7 +204,7 @@ def test_starting_swarm_routes_the_second_participant_to_an_independent_merge(tm
 
     def bob_next():
         assert main(["next", "--journal", str(reader.dir / "journal.jsonl"),
-                     "--actor", "bob", "--capability", "os:linux"]) == 0
+                     "--actor", "bob", "--no-execution"]) == 0
         return json.loads(capsys.readouterr().out)
 
     rec = bob_next()

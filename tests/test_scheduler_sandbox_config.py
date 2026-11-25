@@ -4,7 +4,9 @@ from pathlib import Path
 import pytest
 
 from forgemesh import commands, config, sandbox, scheduler
+from forgemesh.__main__ import main
 from forgemesh.core import SYSTEM, fold
+from forgemesh.journal import dumps
 from forgemesh.fingerprint import patch_id
 
 from .test_core import SHA, base, ev, submit, task, vote
@@ -90,6 +92,30 @@ def test_recommend_does_not_offer_claims_the_policy_would_reject(paused):
     rec = scheduler.recommend(state, "alice", set())
     assert rec["claim"] == [] and rec["validate"] == ["NX-0003"] and rec["mode"] == "validate"
     assert scheduler.recommend(state, "carol", set())["claim"] == ([] if paused else ["NX-0002"])
+
+
+def test_next_without_execution_filters_claims_and_validation_without_probing(tmp_path, capsys, monkeypatch):
+    tasks = [task(f"NX-000{i}", **settings) for i, settings in enumerate((
+        {"execution": "none"}, {}, {"execution": "none"}, {"execution": "container"},
+        {"execution": "none", "hardware": ["os:linux"]},
+        {"execution": "none", "validation": {"commands": ["pytest"]}},
+    ), 1)]
+    events = base(*tasks) + [
+        ev("claim", task="NX-0003"), submit(t="NX-0003", pr=3),
+        ev("claim", task="NX-0004", actor="bob"), submit(actor="bob", t="NX-0004", pr=4),
+    ]
+    journal = tmp_path / "journal.jsonl"
+    journal.write_text("".join(dumps(e) + "\n" for e in events))
+
+    def unexpected_probe():
+        pytest.fail("read-only task selection probed the machine")
+
+    monkeypatch.setattr("forgemesh.capabilities.detect", unexpected_probe)
+    assert main(["next", "--journal", str(journal), "--actor", "carol", "--no-execution"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["claim"] == ["NX-0001"]
+    assert result["validate"] == ["NX-0003"]
+    assert result["validation_targets"]["NX-0003"]["head_sha"] == SHA
 
 
 # ---- commands (untrusted input) ---------------------------------------------

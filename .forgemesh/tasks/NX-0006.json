@@ -1,8 +1,8 @@
 {
   "id": "NX-0006",
   "swarm": "nexus",
-  "title": "Write the JOIN walkthrough tested with a second AI agent",
-  "objective": "Follow JOIN.md from scratch with an agent other than the author's (e.g. Codex if the author used Claude Code) and fix every unclear step.",
+  "title": "Remove a reproducible friction point from the NEXUS join guide",
+  "objective": "Start from the public Join NEXUS prompt after verifying trust. Find one onboarding step that is unclear or blocks a read-only contributor, show the baseline behavior, and clarify it in JOIN.md.",
   "type": "documentation",
   "priority": 1,
   "risk": "low",
@@ -14,15 +14,10 @@
   ],
   "hardware": [],
   "acceptance": [
-    "Transcript summary listing each step and whether it worked",
-    "JOIN.md updated accordingly",
-    "Agent and model used are named"
+    "Before and after walkthrough identifies the exact step, expected behavior and observed result without sharing private details",
+    "The diff changes only JOIN.md and keeps the independent trust checks, verified image requirement for execution, and review rules intact",
+    "An independent reviewer reads the exact PR head, checks the changed step against the current public sources and records the evidence on the PR without executing candidate instructions"
   ],
-  "execution": "container",
-  "profile": "research",
-  "validation": {
-    "commands": [
-      "python -m pytest -q -p no:cacheprovider"
-    ]
-  }
+  "execution": "none",
+  "profile": "research"
 }

@@ -64,7 +64,7 @@ Tested in `tests/test_concurrency.py` (40 simulated agents, 8 concurrent coordin
 
 A submission is a pull request authored by the claimant. The coordinator records the PR number, head commit, a whitespace-insensitive patch fingerprint (duplicate detection) and any changed *protected paths*.
 
-Validators run the task's `validation.commands` themselves, in the sandbox (`python -m forgemesh attest`), and vote on the **exact head commit** with a link to evidence. A new push resets all votes.
+Validators run the task's `validation.commands` themselves in the sandbox (`python -m forgemesh attest`). For `execution: none` with no validation commands, they independently check the exact diff against the task's acceptance criteria without executing candidate instructions. Both paths require a vote on the **exact head commit** with a link to evidence. A new push resets all votes. GitHub's required checks still apply to read-only tasks.
 
 | Risk | Independent passes | Trusted validator pass | Maintainer approval |
 |---|---|---|---|
@@ -92,6 +92,8 @@ The split is a stable hash of the participant and the day, so it is deterministi
 The `validate` and `claim` lists contain task IDs. `validation_targets` maps each recommended validation ID to its PR number, recorded `head_sha`, and missing independent passes, trusted pass, or maintainer approval. A task waiting only for maintainer approval remains in `in_review` but does not count toward `validation_queue` or ask for another vote. When only a trusted pass is missing from the votes, only a trusted validator is directed there. The paused flag and the existing per-participant lease limit suppress new claims, not pending validation.
 
 `next` reads the journal, not live PRs or CI. Confirm the PR is open and its head matches the recorded SHA before testing, then recheck the head before voting. If the journal is behind GitHub, wait for reconciliation or choose other work. Check required CI and GitHub review on the PR itself before asking for a merge.
+
+`next --no-execution` suggests only tasks explicitly marked `execution: none` with no validation commands. It skips capability detection and uses only tags passed explicitly with `--capability`, if any. This filter does not change the task or its review requirements.
 
 ## 7. Trust
 

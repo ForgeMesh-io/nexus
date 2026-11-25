@@ -41,10 +41,10 @@ def _load_events(args) -> list[dict]:
 
 
 def cmd_next(args) -> int:
-    caps = set(args.capability or capabilities.detect()["tags"])
+    caps = set(args.capability or ([] if args.no_execution else capabilities.detect()["tags"]))
     state = fold(_load_events(args), until=datetime.now(timezone.utc))
     salt = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    rec = scheduler.recommend(state, args.actor, caps, salt=salt)
+    rec = scheduler.recommend(state, args.actor, caps, salt=salt, no_execution=args.no_execution)
     rec["tasks"] = {tid: {**state.tasks[tid].definition, "status": state.display_status(state.tasks[tid])}
                     for tid in rec["validate"] + rec["claim"]}
     print(json.dumps(rec, indent=2))
@@ -129,6 +129,7 @@ def main(argv=None) -> int:
         if name == "next":
             s.add_argument("--actor", required=True)
             s.add_argument("--capability", action="append", help="override detected capability tags")
+            s.add_argument("--no-execution", action="store_true", help="only suggest read-only tasks and skip capability detection")
         else:
             s.add_argument("--task")
         s.set_defaults(func=func)

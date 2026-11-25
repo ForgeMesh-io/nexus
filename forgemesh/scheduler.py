@@ -33,13 +33,17 @@ def _blocks_count(state: State, task: Task) -> int:
     return sum(1 for t in state.tasks.values() if task.id in t.definition.get("depends_on", []))
 
 
-def recommend(state: State, actor: str, capabilities: set[str], salt: str = "", limit: int = 5) -> dict:
+def recommend(state: State, actor: str, capabilities: set[str], salt: str = "", limit: int = 5,
+              *, no_execution: bool = False) -> dict:
+    eligible = [t for t in state.tasks.values() if set(t.definition.get("hardware", [])) <= capabilities
+                and (not no_execution or (t.definition.get("execution") == "none"
+                                          and not t.definition.get("validation", {}).get("commands")))]
     mode = mode_for(state, actor, salt)
     validate = []
     targets = {}
-    for t in state.tasks.values():
+    for t in eligible:
         if t.status in {SUBMITTED, VALIDATING} and t.submission and actor not in (t.claimant, t.submission["author"]) \
-                and actor not in t.votes and set(t.definition.get("hardware", [])) <= capabilities:
+                and actor not in t.votes:
             needs = state.validation_needs(t)
             if needs["independent_passes"] or (needs["trusted_pass"] and state.is_trusted_validator(actor)):
                 sub = t.submission
@@ -49,11 +53,9 @@ def recommend(state: State, actor: str, capabilities: set[str], salt: str = "", 
     validation_ids = [x[-1] for x in validate[:limit]]
     develop = []
     can_claim = not state.policy.get("paused") and state.active_claims(actor) < state.policy["max_active_claims_per_user"]
-    for t in state.tasks.values() if can_claim else ():
+    for t in eligible if can_claim else ():
         d = t.definition
         if t.status not in CLAIMABLE or not state.deps_satisfied(t) or state.conflicts(t):
-            continue
-        if not set(d.get("hardware", [])) <= capabilities:
             continue
         if any(state.component_load(c) >= state.policy["wip_limit_per_component"] for c in d.get("components", [])):
             continue

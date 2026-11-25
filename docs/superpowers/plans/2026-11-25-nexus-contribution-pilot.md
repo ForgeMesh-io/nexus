@@ -40,3 +40,11 @@
 ## Pilot measurement
 
 Run comparable, narrowly scoped tasks with GitHub issues, PRs, CI, and the same review rules in both groups. Add NEXUS reservations and recommendations in only one group. Leave PRs and evidence public; record reviewer minutes privately as aggregate time, not per-person telemetry. Compare redundant PRs per outcome, time from work availability to a complete exact-SHA review packet, maintainer minutes per accepted merge, and regressions over the same follow-up period. Record blocked and unfinished outcomes too. Keep the extra coordination only if it saves maintainer time without worse evidence or regression rates. A local rehearsal checks correctness; it does not measure savings.
+
+## Self-improvement without an execution image
+
+- [x] In `tests/test_scheduler_sandbox_config.py`, use `next --no-execution` with a local journal containing documentation work, a submitted read-only task, and tasks that need execution or hardware. Verify eligible claims and the exact-SHA validation target remain; execution-required tasks are excluded even when their mode is omitted, and capability detection is not called.
+- [x] In `forgemesh/__main__.py` and `forgemesh/scheduler.py`, make that flag filter both lists. Do not let it change claim policy or `READY_TO_MERGE`. Keep default recommendations compatible.
+- [x] Set `NX-0006` to a text-only improvement of `JOIN.md`. Give its independent reviewer acceptance checks that do not execute PR files, and keep GitHub required CI. Document the handoff and give newcomers a GitHub issue template for actionable feedback that does not duplicate existing work.
+- [x] Verify the first task and a handoff on a real local Git journal. Do not count the bootstrap push as a swarm contribution.
+- [ ] Record the first real public submission, independent validation, and human integration.
