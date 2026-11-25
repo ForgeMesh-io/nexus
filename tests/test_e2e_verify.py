@@ -52,6 +52,12 @@ def test_verify_wrong_anchor(served):
     assert r.returncode == 3 and "trust anchor mismatch" in r.stderr
 
 
+def test_verify_unreachable_registry_fails_cleanly(served):
+    _, anchor, tmp = served
+    r = verify("http://127.0.0.1:9", anchor, tmp / "cache")
+    assert r.returncode == 3 and "Traceback" not in r.stderr
+
+
 def test_verify_unknown_swarm(served):
     url, anchor, tmp = served
     r = verify(url, anchor, tmp / "cache", swarm="vie")

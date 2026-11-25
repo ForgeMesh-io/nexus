@@ -208,8 +208,11 @@ def fetch_verified(metadata_url: str, targets_url: str, anchor_sha256: str, swar
     if not trusted.exists():
         if root_bytes is None:
             import urllib.request
-            with urllib.request.urlopen(f"{metadata_url.rstrip('/')}/1.root.json", timeout=60) as r:
-                root_bytes = r.read()
+            try:
+                with urllib.request.urlopen(f"{metadata_url.rstrip('/')}/1.root.json", timeout=60) as r:
+                    root_bytes = r.read()
+            except OSError as e:  # URLError/HTTPError are OSError subclasses
+                raise TrustError(f"cannot download 1.root.json: {e}") from None
         verify_anchor(root_bytes, anchor_sha256)
         trusted.write_bytes(root_bytes)
     up = Updater(metadata_dir=str(meta_dir), metadata_base_url=metadata_url, target_dir=str(cache / "targets"),
