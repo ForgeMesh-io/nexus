@@ -14,7 +14,14 @@ on:
 permissions: {}
 
 jobs:
+  test:
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   build:
+    needs: test
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment: release        # requires a maintainer approval (configure reviewers on the environment)

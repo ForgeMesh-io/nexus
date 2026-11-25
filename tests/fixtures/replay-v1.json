@@ -1,0 +1,391 @@
+{
+  "until": "2026-01-02T01:00:00Z",
+  "events": [
+    {
+      "id": "e0",
+      "kind": "policy",
+      "actor": "@system",
+      "time": "2026-01-01T00:00:00Z",
+      "policy": {
+        "swarm": "nexus",
+        "maintainers": [
+          "boss"
+        ],
+        "trusted_validators": [
+          "carol"
+        ]
+      }
+    },
+    {
+      "id": "e1",
+      "kind": "task",
+      "actor": "@system",
+      "time": "2026-01-01T00:00:00Z",
+      "task": {
+        "id": "NX-0001",
+        "type": "developer",
+        "priority": 1,
+        "risk": "high"
+      }
+    },
+    {
+      "id": "e2",
+      "kind": "task",
+      "actor": "@system",
+      "time": "2026-01-01T00:00:00Z",
+      "task": {
+        "id": "NX-0002",
+        "type": "developer",
+        "priority": 1,
+        "risk": "low"
+      }
+    },
+    {
+      "id": "e3",
+      "kind": "task",
+      "actor": "@system",
+      "time": "2026-01-01T00:00:00Z",
+      "task": {
+        "id": "NX-0003",
+        "type": "developer",
+        "priority": 1,
+        "risk": "low"
+      }
+    },
+    {
+      "id": "e4",
+      "kind": "claim",
+      "actor": "alice",
+      "time": "2026-01-01T00:00:00Z",
+      "task": "NX-0001"
+    },
+    {
+      "id": "e5",
+      "kind": "submit",
+      "actor": "alice",
+      "time": "2026-01-01T00:00:00Z",
+      "task": "NX-0001",
+      "submission": {
+        "pr": 1,
+        "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "author": "alice",
+        "patch_id": "p1",
+        "violations": [
+          ".github/ci.yml"
+        ]
+      }
+    },
+    {
+      "id": "e6",
+      "kind": "vote",
+      "actor": "alice",
+      "time": "2026-01-01T00:00:00Z",
+      "task": "NX-0001",
+      "verdict": "pass",
+      "sha": "aaaaaaa",
+      "evidence": "https://example.org/check"
+    },
+    {
+      "id": "e7",
+      "kind": "vote",
+      "actor": "bob",
+      "time": "2026-01-01T00:00:00Z",
+      "task": "NX-0001",
+      "verdict": "pass",
+      "sha": "aaaaaaa",
+      "evidence": "https://example.org/check"
+    },
+    {
+      "id": "e8",
+      "kind": "vote",
+      "actor": "carol",
+      "time": "2026-01-01T00:00:00Z",
+      "task": "NX-0001",
+      "verdict": "pass",
+      "sha": "aaaaaaa",
+      "evidence": "https://example.org/check"
+    },
+    {
+      "id": "e9",
+      "kind": "approve",
+      "actor": "boss",
+      "time": "2026-01-01T00:00:00Z",
+      "task": "NX-0001",
+      "sha": "aaaaaaa"
+    },
+    {
+      "id": "e10",
+      "kind": "pr_updated",
+      "actor": "@system",
+      "time": "2026-01-01T00:00:00Z",
+      "task": "NX-0001",
+      "pr": 1,
+      "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "id": "e11",
+      "kind": "vote",
+      "actor": "bob",
+      "time": "2026-01-01T00:00:00Z",
+      "task": "NX-0001",
+      "verdict": "pass",
+      "sha": "aaaaaaa",
+      "evidence": "https://example.org/check"
+    },
+    {
+      "id": "e12",
+      "kind": "merged",
+      "actor": "@system",
+      "time": "2026-01-01T00:00:00Z",
+      "task": "NX-0001",
+      "pr": 1,
+      "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "id": "e13",
+      "kind": "claim",
+      "actor": "bob",
+      "time": "2026-01-01T00:00:00Z",
+      "task": "NX-0002"
+    },
+    {
+      "id": "e14",
+      "kind": "submit",
+      "actor": "bob",
+      "time": "2026-01-01T00:00:00Z",
+      "task": "NX-0002",
+      "submission": {
+        "pr": 2,
+        "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "author": "bob",
+        "patch_id": "p1"
+      }
+    },
+    {
+      "id": "e15",
+      "kind": "claim",
+      "actor": "carol",
+      "time": "2026-01-01T00:00:00Z",
+      "task": "NX-0003"
+    },
+    {
+      "id": "e16",
+      "kind": "block",
+      "actor": "carol",
+      "time": "2026-01-01T00:00:00Z",
+      "task": "NX-0003",
+      "reason": "Missing test environment"
+    },
+    {
+      "id": "e17",
+      "kind": "unblock",
+      "actor": "boss",
+      "time": "2026-01-01T00:00:00Z",
+      "task": "NX-0003"
+    }
+  ],
+  "state": {
+    "clock": "2026-01-02T01:00:00Z",
+    "paused": false,
+    "tasks": {
+      "NX-0001": {
+        "id": "NX-0001",
+        "status": "MERGED",
+        "claimant": "alice",
+        "lease_expires": null,
+        "renewals": 0,
+        "submission": {
+          "pr": 1,
+          "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "author": "alice",
+          "patch_id": null,
+          "violations": [],
+          "at": "2026-01-01T00:00:00Z",
+          "audit": [
+            "merged while SUBMITTED"
+          ]
+        },
+        "votes": {},
+        "approval": null,
+        "attempts": [
+          {
+            "actor": "alice",
+            "from": "2026-01-01T00:00:00Z",
+            "to": "2026-01-01T00:00:00Z",
+            "outcome": "merged"
+          }
+        ],
+        "block_reason": null,
+        "display_status": "MERGED"
+      },
+      "NX-0002": {
+        "id": "NX-0002",
+        "status": "EXPIRED",
+        "claimant": null,
+        "lease_expires": null,
+        "renewals": 0,
+        "submission": null,
+        "votes": {},
+        "approval": null,
+        "attempts": [
+          {
+            "actor": "bob",
+            "from": "2026-01-01T00:00:00Z",
+            "to": "2026-01-02T00:00:00Z",
+            "outcome": "expired"
+          }
+        ],
+        "block_reason": null,
+        "display_status": "EXPIRED"
+      },
+      "NX-0003": {
+        "id": "NX-0003",
+        "status": "AVAILABLE",
+        "claimant": null,
+        "lease_expires": null,
+        "renewals": 0,
+        "submission": null,
+        "votes": {},
+        "approval": null,
+        "attempts": [
+          {
+            "actor": "carol",
+            "from": "2026-01-01T00:00:00Z",
+            "to": "2026-01-01T00:00:00Z",
+            "outcome": "blocked"
+          }
+        ],
+        "block_reason": null,
+        "display_status": "AVAILABLE"
+      }
+    }
+  },
+  "decisions": [
+    {
+      "event": "e4",
+      "task": "NX-0001",
+      "actor": "alice",
+      "kind": "claim",
+      "issue": null,
+      "accepted": true,
+      "message": "claimed by @alice until 2026-01-02T00:00:00Z"
+    },
+    {
+      "event": "e5",
+      "task": "NX-0001",
+      "actor": "alice",
+      "kind": "submit",
+      "issue": null,
+      "accepted": true,
+      "message": "submission #1 @ aaaaaaaaaaaa recorded, waiting for independent validation \u2014 touches protected paths, maintainer review required: .github/ci.yml"
+    },
+    {
+      "event": "e6",
+      "task": "NX-0001",
+      "actor": "alice",
+      "kind": "vote",
+      "issue": null,
+      "accepted": false,
+      "message": "authors cannot validate their own contribution"
+    },
+    {
+      "event": "e7",
+      "task": "NX-0001",
+      "actor": "bob",
+      "kind": "vote",
+      "issue": null,
+      "accepted": true,
+      "message": "pass vote from @bob recorded; still needs 1 more independent pass vote(s), a pass from a trusted validator, maintainer approval"
+    },
+    {
+      "event": "e8",
+      "task": "NX-0001",
+      "actor": "carol",
+      "kind": "vote",
+      "issue": null,
+      "accepted": true,
+      "message": "pass vote from @carol recorded; still needs maintainer approval"
+    },
+    {
+      "event": "e9",
+      "task": "NX-0001",
+      "actor": "boss",
+      "kind": "approve",
+      "issue": null,
+      "accepted": true,
+      "message": "maintainer approval recorded; ready to merge"
+    },
+    {
+      "event": "e10",
+      "task": "NX-0001",
+      "actor": "@system",
+      "kind": "pr_updated",
+      "issue": null,
+      "accepted": true,
+      "message": "new commit bbbbbbbbbbbb pushed, previous votes no longer apply"
+    },
+    {
+      "event": "e11",
+      "task": "NX-0001",
+      "actor": "bob",
+      "kind": "vote",
+      "issue": null,
+      "accepted": false,
+      "message": "vote must reference the submitted commit bbbbbbbbbbbb"
+    },
+    {
+      "event": "e12",
+      "task": "NX-0001",
+      "actor": "@system",
+      "kind": "merged",
+      "issue": null,
+      "accepted": true,
+      "message": "merged \u2014 AUDIT: merged while SUBMITTED"
+    },
+    {
+      "event": "e13",
+      "task": "NX-0002",
+      "actor": "bob",
+      "kind": "claim",
+      "issue": null,
+      "accepted": true,
+      "message": "claimed by @bob until 2026-01-02T00:00:00Z"
+    },
+    {
+      "event": "e14",
+      "task": "NX-0002",
+      "actor": "bob",
+      "kind": "submit",
+      "issue": null,
+      "accepted": false,
+      "message": "identical patch already submitted for NX-0001"
+    },
+    {
+      "event": "e15",
+      "task": "NX-0003",
+      "actor": "carol",
+      "kind": "claim",
+      "issue": null,
+      "accepted": true,
+      "message": "claimed by @carol until 2026-01-02T00:00:00Z"
+    },
+    {
+      "event": "e16",
+      "task": "NX-0003",
+      "actor": "carol",
+      "kind": "block",
+      "issue": null,
+      "accepted": true,
+      "message": "task blocked: Missing test environment"
+    },
+    {
+      "event": "e17",
+      "task": "NX-0003",
+      "actor": "boss",
+      "kind": "unblock",
+      "issue": null,
+      "accepted": true,
+      "message": "task is now AVAILABLE"
+    }
+  ]
+}

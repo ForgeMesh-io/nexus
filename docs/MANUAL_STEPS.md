@@ -8,7 +8,7 @@ Things that cannot (or must not) be automated by an agent. Tick them in a tracki
 - [ ] Find two other root key holders and a second maintainer (bus factor).
 - [ ] Organisation: keep 2FA required; review members and outside collaborators quarterly.
 - [ ] Create a `maintainers` team when there is more than one maintainer and switch CODEOWNERS to it.
-- [ ] Configure required reviewers on the `release` environment of `nexus` (image publishing).
+- [ ] Configure required reviewers on the `release` environment of `nexus` and restrict deployments to `v*` tags. The image workflow runs CI on the tagged commit before the approval gate. Do not create or dispatch a release tag until the environment is configured.
 
 ## Every swarm repository
 
@@ -18,6 +18,11 @@ Things that cannot (or must not) be automated by an agent. Tick them in a tracki
 - [ ] Secret scanning, push protection, Dependabot alerts, private vulnerability reporting: enabled.
 - [ ] Create and pin the "ForgeMesh coordination" issue.
 - [ ] Replace `__NEXUS_SHA__` in `.github/workflows/forgemesh.yml`.
+
+## Rust coordinator pilot
+
+- After reviewing the migration and its CI, pin both the reusable workflow and its `nexus-ref` to the same reviewed NEXUS commit. Set `rust-coordinator: true` on one swarm only. Verify the first run, including task decisions and replies, before changing another caller.
+- To roll back, remove `rust-coordinator: true` or restore the previous caller pins. Keep the `forgemesh-state` branch intact. The Python coordinator can replay the Rust journal; do not rewind it to undo a config or task decision.
 
 ## Registry
 

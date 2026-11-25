@@ -1,6 +1,7 @@
 name: ci
 
 on:
+  workflow_call:
   pull_request:
   push:
     branches: [main]
@@ -22,6 +23,13 @@ jobs:
       - run: pip install --require-hashes --no-deps -r docker/requirements.lock
       - run: python -m pytest -q
       - run: python -m forgemesh check-config .
+      - name: Check Rust tooling
+        run: |
+          rustup toolchain install 1.96.0 --profile minimal --component rustfmt --component clippy
+          cargo +1.96.0 fmt --all --check
+          cargo +1.96.0 test --locked --profile fast
+          cargo +1.96.0 clippy --locked --profile fast --all-targets -- -D warnings
+          cargo +1.96.0 run --locked --profile fast -- check-config .
       - name: actionlint
         run: |
           curl -fsSL -o /tmp/al.tgz https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
