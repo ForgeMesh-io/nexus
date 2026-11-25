@@ -13,13 +13,12 @@ from datetime import datetime, timedelta, timezone
 
 from . import commands
 from .config import config_events
-from .core import IN_REVIEW, STATES, SYSTEM, fmt_time, fold, parse_time
+from .core import IN_REVIEW, SYSTEM, fmt_time, fold, parse_time
 from .fingerprint import patch_id
 from .journal import PushRejected, Store, merge_new
 
 LOOKBACK = timedelta(minutes=10)   # re-read recent comments: covers clock skew between runs
 MAX_ATTEMPTS = 8
-TASK_LABEL = "fm:task"
 
 
 def protected_violations(files: list[str], protected: list[str]) -> list[str]:
@@ -133,8 +132,3 @@ class Coordinator:
                 except PushRejected:
                     continue
         return len(pending)
-
-
-def labels_for(status: str) -> str:
-    assert status in STATES
-    return "fm:" + status.lower().replace("_", "-")
