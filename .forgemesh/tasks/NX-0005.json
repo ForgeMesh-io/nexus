@@ -1,0 +1,31 @@
+{
+  "id": "NX-0005",
+  "swarm": "nexus",
+  "title": "Load test: coordinator with 200 simulated agents",
+  "objective": "Extend the concurrency simulation to 200 agents, 50 tasks and 10 concurrent coordinators; measure retries and wall time.",
+  "type": "benchmarker",
+  "priority": 2,
+  "risk": "low",
+  "components": [
+    "core",
+    "coordinator"
+  ],
+  "files": [
+    "benchmarks/**"
+  ],
+  "hardware": [
+    "cpu:4c"
+  ],
+  "acceptance": [
+    "Script under benchmarks/ reproducible with one command",
+    "Results table with machine description",
+    "No accepted double claim in any run"
+  ],
+  "execution": "container",
+  "profile": "build",
+  "validation": {
+    "commands": [
+      "python -m pytest -q -p no:cacheprovider"
+    ]
+  }
+}

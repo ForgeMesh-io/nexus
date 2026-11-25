@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://forgemesh-io.github.io/registry/schemas/v1/policy.schema.json",
+  "title": "ForgeMesh swarm policy (v1)",
+  "description": "Coordination rules of a swarm. This file must be protected by CODEOWNERS: agents can propose changes but never approve them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["swarm", "maintainers"],
+  "properties": {
+    "swarm": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,31}$"},
+    "maintainers": {"type": "array", "minItems": 1, "items": {"type": "string"}, "uniqueItems": true},
+    "trusted_validators": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "paused": {"type": "boolean", "default": false, "description": "Kill switch: no new claims, no automatic integration"},
+    "lease_hours": {"type": "number", "minimum": 1, "maximum": 168, "default": 24},
+    "max_renewals": {"type": "integer", "minimum": 0, "default": 6},
+    "max_active_claims_per_user": {"type": "integer", "minimum": 1, "default": 2},
+    "wip_limit_per_component": {"type": "integer", "minimum": 1, "default": 3},
+    "required_passes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "low": {"type": "integer", "minimum": 1},
+        "medium": {"type": "integer", "minimum": 1},
+        "high": {"type": "integer", "minimum": 1},
+        "critical": {"type": "integer", "minimum": 1}
+      }
+    },
+    "maintainer_approval_from": {"enum": ["low", "medium", "high", "critical", "never"], "default": "high"},
+    "trusted_vote_from": {"enum": ["low", "medium", "high", "critical", "never"], "default": "high"},
+    "auto_merge_max_risk": {"enum": ["none", "low", "medium"], "default": "low"},
+    "protected_paths": {"type": "array", "items": {"type": "string"}, "description": "Globs that only maintainers may change (tests, policy, workflows)"},
+    "validation_pressure": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Share of participants sent to development, by number of submissions waiting for validation",
+      "properties": {
+        "low_queue": {"type": "integer", "minimum": 0, "default": 3},
+        "high_queue": {"type": "integer", "minimum": 1, "default": 10},
+        "dev_share_low": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.7},
+        "dev_share_mid": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.35},
+        "dev_share_high": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.05}
+      }
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "id": "NX-0002",
+  "swarm": "nexus",
+  "title": "Generate the public dashboard JSON from the state branch",
+  "objective": "Write a script that turns state.json into a compact dashboard.json (counts per status, validation queue age, oldest submission) consumable by the portal.",
+  "type": "developer",
+  "priority": 1,
+  "risk": "low",
+  "components": [
+    "dashboard"
+  ],
+  "files": [
+    "forgemesh/dashboard.py"
+  ],
+  "hardware": [],
+  "acceptance": [
+    "Output validated by a JSON schema added in the same PR",
+    "No personal data beyond GitHub logins",
+    "Unit tests with a fixture journal"
+  ],
+  "execution": "container",
+  "profile": "build",
+  "validation": {
+    "commands": [
+      "python -m pytest -q -p no:cacheprovider"
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "id": "NX-0008",
+  "swarm": "nexus",
+  "title": "Windows participant support for capability detection",
+  "objective": "Make forgemesh capabilities report GPU and RAM on Windows without extra dependencies (PowerShell/CIM).",
+  "type": "developer",
+  "priority": 2,
+  "risk": "low",
+  "components": [
+    "capabilities"
+  ],
+  "files": [
+    "forgemesh/capabilities.py"
+  ],
+  "hardware": [
+    "os:windows"
+  ],
+  "acceptance": [
+    "Tested on a real Windows machine, output attached",
+    "No serial numbers or user names in output"
+  ],
+  "execution": "container",
+  "profile": "build",
+  "validation": {
+    "commands": [
+      "python -m pytest -q -p no:cacheprovider"
+    ]
+  }
+}

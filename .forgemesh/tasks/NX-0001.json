@@ -1,0 +1,28 @@
+{
+  "id": "NX-0001",
+  "swarm": "nexus",
+  "title": "Add a lease-renewal reminder to coordinator replies",
+  "objective": "When a lease has less than 20% of its duration left, the next coordinator run should mention it in a reply so the claimant can renew or release.",
+  "type": "developer",
+  "priority": 2,
+  "risk": "low",
+  "components": [
+    "coordinator"
+  ],
+  "files": [
+    "forgemesh/coordinator.py"
+  ],
+  "hardware": [],
+  "acceptance": [
+    "Reminder posted at most once per lease",
+    "Covered by a new test in a new test file under tests/",
+    "All existing tests pass"
+  ],
+  "execution": "container",
+  "profile": "build",
+  "validation": {
+    "commands": [
+      "python -m pytest -q -p no:cacheprovider"
+    ]
+  }
+}

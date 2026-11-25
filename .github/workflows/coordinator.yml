@@ -1,0 +1,66 @@
+# Reusable coordinator workflow. Each swarm repository calls it from a tiny
+# caller workflow (see templates/swarm/.github/workflows/forgemesh.yml).
+#
+# Security notes
+# - Triggered by issue_comment / schedule only: it always runs the code of the
+#   default branch, never code from a pull request.
+# - Comment bodies are parsed by a strict grammar and never interpolated into
+#   shell commands (no ${{ github.event.comment.body }} anywhere).
+# - The job token can write issues and the state branch; it has no access to
+#   publishing secrets.
+name: forgemesh-coordinator
+
+on:
+  workflow_call:
+    inputs:
+      nexus-ref:
+        description: Commit SHA of ForgeMesh-io/nexus providing the coordinator code
+        required: true
+        type: string
+      full-scan:
+        required: false
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  coordinate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write        # push to the forgemesh-state branch only (protect other branches with rulesets)
+      issues: write          # reply to commands
+      pull-requests: read    # inspect submitted pull requests
+    steps:
+      - name: Check out swarm configuration (default branch)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: swarm
+          persist-credentials: false
+      - name: Check out ForgeMesh tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ForgeMesh-io/nexus
+          ref: ${{ inputs.nexus-ref }}
+          path: nexus
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Install pinned dependencies
+        run: pip install --require-hashes --no-deps -r nexus/docker/requirements.lock
+      - name: Prepare state clone
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          git init -q state
+          git -C state remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+      - name: Coordinate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          FULL_SCAN: ${{ inputs.full-scan && '--full-scan' || '' }}
+          PYTHONPATH: nexus
+        run: python -m forgemesh coordinate --repo "$REPO" --state-dir state --config-root swarm $FULL_SCAN

@@ -1,0 +1,25 @@
+{
+  "id": "NX-0003",
+  "swarm": "nexus",
+  "title": "Independent review of the claim state machine",
+  "objective": "Read forgemesh/core.py and try to find a sequence of events that gives two accepted exclusive claims, a vote counted for the wrong commit, or an author validating their own work.",
+  "type": "challenger",
+  "priority": 0,
+  "risk": "low",
+  "components": [
+    "core"
+  ],
+  "files": [],
+  "hardware": [],
+  "acceptance": [
+    "A report listing each attack tried and its outcome",
+    "Any finding comes with a failing test case (as a separate PR touching only tests/, which maintainers review)"
+  ],
+  "execution": "container",
+  "profile": "research",
+  "validation": {
+    "commands": [
+      "python -m pytest -q -p no:cacheprovider"
+    ]
+  }
+}

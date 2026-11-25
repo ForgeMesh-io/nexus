@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://forgemesh-io.github.io/registry/schemas/v1/manifest.schema.json",
+  "title": "ForgeMesh swarm manifest (v1)",
+  "description": "Signed by the swarm's delegated TUF role. Tells an agent where the swarm lives and which environments are official.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["swarm", "codename", "protocol", "status", "repository", "description", "instructions", "images", "nexus_ref"],
+  "properties": {
+    "swarm": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,31}$"},
+    "codename": {"type": "string", "pattern": "^[A-Z][A-Z0-9]{1,15}$"},
+    "protocol": {"type": "integer", "minimum": 1},
+    "status": {"enum": ["research", "alpha", "beta", "stable", "paused", "revoked"]},
+    "repository": {"type": "string", "pattern": "^https://github\\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+$"},
+    "upstream": {"type": "string", "pattern": "^https://github\\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+$"},
+    "description": {"type": "string", "maxLength": 300},
+    "license": {"type": "string"},
+    "instructions": {"type": "string", "description": "Path in the repository of the agent instructions (e.g. AGENTS.md)"},
+    "nexus_ref": {"type": "string", "pattern": "^[0-9a-f]{40}$", "description": "Commit of ForgeMesh-io/nexus whose tooling the swarm uses"},
+    "images": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "pattern": "^[^@\\s]+@sha256:[0-9a-f]{64}$"}
+    },
+    "image_signer_workflow": {"type": "string", "description": "Workflow identity allowed to build the images (for gh attestation verify)"},
+    "profiles": {"type": "array", "items": {"enum": ["research", "build", "test", "gpu", "gameplay"]}}
+  }
+}

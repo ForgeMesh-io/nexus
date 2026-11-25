@@ -1,0 +1,28 @@
+{
+  "id": "NX-0006",
+  "swarm": "nexus",
+  "title": "Write the JOIN walkthrough tested with a second AI agent",
+  "objective": "Follow JOIN.md from scratch with an agent other than the author's (e.g. Codex if the author used Claude Code) and fix every unclear step.",
+  "type": "documentation",
+  "priority": 1,
+  "risk": "low",
+  "components": [
+    "docs"
+  ],
+  "files": [
+    "JOIN.md"
+  ],
+  "hardware": [],
+  "acceptance": [
+    "Transcript summary listing each step and whether it worked",
+    "JOIN.md updated accordingly",
+    "Agent and model used are named"
+  ],
+  "execution": "container",
+  "profile": "research",
+  "validation": {
+    "commands": [
+      "python -m pytest -q -p no:cacheprovider"
+    ]
+  }
+}

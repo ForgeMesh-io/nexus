@@ -1,0 +1,31 @@
+{
+  "id": "NX-0007",
+  "swarm": "nexus",
+  "title": "Detect overlapping submissions across tasks",
+  "objective": "Add a check that lists submissions whose changed files overlap another active submission, so integrators can order merges.",
+  "type": "developer",
+  "priority": 2,
+  "risk": "medium",
+  "components": [
+    "coordinator"
+  ],
+  "files": [
+    "forgemesh/overlap.py"
+  ],
+  "hardware": [],
+  "acceptance": [
+    "Deterministic output given the same state",
+    "Unit tests",
+    "Does not call any AI model"
+  ],
+  "execution": "container",
+  "profile": "build",
+  "validation": {
+    "commands": [
+      "python -m pytest -q -p no:cacheprovider"
+    ]
+  },
+  "depends_on": [
+    "NX-0002"
+  ]
+}

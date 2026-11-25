@@ -1,0 +1,25 @@
+{
+  "id": "NX-0004",
+  "swarm": "nexus",
+  "title": "Security audit of the coordinator workflow",
+  "objective": "Audit .github/workflows/coordinator.yml and templates/swarm for script injection, token over-permission, untrusted checkout and pull_request_target pitfalls.",
+  "type": "security",
+  "priority": 0,
+  "risk": "low",
+  "components": [
+    "workflows"
+  ],
+  "files": [],
+  "hardware": [],
+  "acceptance": [
+    "Report with each GitHub Actions hardening item checked (pass/fail/not applicable)",
+    "Findings filed as separate issues with reproduction steps"
+  ],
+  "execution": "container",
+  "profile": "research",
+  "validation": {
+    "commands": [
+      "python -m pytest -q -p no:cacheprovider"
+    ]
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://forgemesh-io.github.io/registry/schemas/v1/task.schema.json",
+  "title": "ForgeMesh task definition (v1)",
+  "description": "Static definition of a unit of work. Runtime status, claims and history are derived from the journal, never stored here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "swarm", "title", "objective", "type", "priority", "risk", "acceptance"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^[A-Z][A-Z0-9]{1,15}-[0-9]{4,}$"},
+    "swarm": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,31}$"},
+    "title": {"type": "string", "minLength": 5, "maxLength": 120},
+    "objective": {"type": "string", "minLength": 10, "maxLength": 500},
+    "description": {"type": "string", "maxLength": 20000},
+    "type": {"enum": ["scout", "planner", "developer", "reviewer", "challenger", "builder", "validator", "benchmarker", "integrator", "documentation", "security", "research"]},
+    "priority": {"type": "integer", "minimum": 0, "maximum": 3, "description": "0 = critical blocker, 3 = low"},
+    "risk": {"enum": ["low", "medium", "high", "critical"]},
+    "depends_on": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "base_ref": {"type": "string", "description": "Commit SHA or branch the work must start from"},
+    "components": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "files": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "Path globs the task is expected to touch"},
+    "skills": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "hardware": {"type": "array", "items": {"type": "string", "pattern": "^[a-z]+:[a-z0-9_.+-]+$"}, "uniqueItems": true, "description": "Capability tags required, e.g. os:linux, gpu:vulkan, gpu:amd, gpu:gfx803"},
+    "execution": {"enum": ["none", "container", "native", "isolated"], "default": "container"},
+    "profile": {"enum": ["research", "build", "test", "gpu", "gameplay"], "default": "build"},
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "commands": {"type": "array", "items": {"type": "string"}},
+        "image": {"type": "string", "description": "Image reference pinned by digest (name@sha256:...)", "pattern": "^[^@\\s]+@sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "acceptance": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 5}},
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hours": {"type": "number", "exclusiveMinimum": 0},
+        "notes": {"type": "string"}
+      }
+    },
+    "lease_hours": {"type": "number", "minimum": 1, "maximum": 168},
+    "parallel_group": {"type": "string", "description": "Tasks sharing a group are intentionally parallel: file overlap between them is allowed"}
+  }
+}
