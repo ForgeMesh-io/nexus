@@ -61,6 +61,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          FULL_SCAN: ${{ inputs.full-scan && '--full-scan' || '' }}
+          FULL_SCAN: ${{ inputs.full-scan && '1' || '' }}
           PYTHONPATH: nexus
-        run: python -m forgemesh coordinate --repo "$REPO" --state-dir state --config-root swarm $FULL_SCAN
+        run: |
+          args=()
+          if [ -n "$FULL_SCAN" ]; then args+=(--full-scan); fi
+          python -m forgemesh coordinate --repo "$REPO" --state-dir state --config-root swarm "${args[@]}"
