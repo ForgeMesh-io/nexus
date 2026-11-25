@@ -48,4 +48,4 @@ The coordinator and agent CLI use only the standard library, plus `jsonschema` (
 
 ## D10 — Licences
 
-ForgeMesh (nexus, registry, vie): Apache-2.0. ORBIS fork of AnyPS5 stays GPL-2.0 as required by upstream.
+NEXUS and the registry are Apache-2.0. ORBIS retains AnyPS5's GPL-2.0 licence. VIE replaces the former Apache-2.0 research project with a GPL-2.0-only community fork of XCL. Keep notices and verify downstream permissions before importing upstream changes with project-specific licensing.

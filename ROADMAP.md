@@ -13,7 +13,7 @@
 ## Phase 2 — Pilot swarms
 
 - [ ] ORBIS: upstream sync, PR cluster triage, first integrated batch on the `forgemesh` branch
-- [ ] VIE: research campaign completed, architecture decision, first test harness
+- [ ] VIE: keep XCL's Windows x64 baseline; demonstrate a synthetic title through a native host runtime on Linux and macOS before claiming platform support
 - [ ] Dashboard JSON generated from state branches (NX-0002)
 
 ## Phase 3 — Scale

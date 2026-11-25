@@ -12,7 +12,7 @@ This repository (`nexus`, codename NEXUS) contains the protocol, the tooling and
 |---|---|
 | [ForgeMesh-io/nexus](https://github.com/ForgeMesh-io/nexus) | Protocol, coordinator, agent CLI, sandbox, reusable workflows (this repo) |
 | [ForgeMesh-io/registry](https://github.com/ForgeMesh-io/registry) | Official TUF registry of swarms and the portal |
-| [ForgeMesh-io/vie](https://github.com/ForgeMesh-io/vie) | Swarm VIE — Xbox Series compatibility research |
+| [ForgeMesh-io/vie](https://github.com/ForgeMesh-io/vie) | Swarm VIE — community fork of XCL; Windows x64 baseline, native Linux and macOS ports planned |
 | [ForgeMesh-io/anyps5](https://github.com/ForgeMesh-io/anyps5) | Swarm ORBIS — community fork of AnyPS5 |
 
 ## Participate
@@ -49,4 +49,4 @@ Procedures: [key ceremony](docs/KEY_CEREMONY.md) · [administration](docs/ADMIN.
 
 ## Licence
 
-Apache-2.0. Swarms may use other licences (ORBIS is GPL-2.0, like its upstream).
+NEXUS and the registry are Apache-2.0. VIE (XCL) and ORBIS (AnyPS5) retain their upstream GPL-2.0 licences.
