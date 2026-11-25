@@ -30,3 +30,13 @@
 - [x] In `.github/workflows/ci.yml` and `images.yml`, reuse the same CI on the selected version tag before any publication job. Keep the existing human release gate. Lint both workflows.
 - [x] In `JOIN.md` and `docs/MANUAL_STEPS.md`, make the official image check, actionable recommendation and first public handoff explicit. Verify the live entry point read-only. Leave the reviewed release tag, public attested digest, signed manifest, and independent GitHub review to their human owners.
 - [ ] After human review and deployment, start a fresh session from the live prompt. Record links to the accepted claim, independent evidence, and audit-free merge before calling the full handoff proven.
+
+## Actionable work slice
+
+- [x] In `tests/test_scheduler_sandbox_config.py`, cover a submission waiting only for maintainer approval, a trusted vote that is still missing, a paused swarm, and a participant with no claim slot. In the real-Git rehearsal, call `next` from the persisted journal and check that the same PR is offered at the new SHA after a push; an old SHA vote must not count.
+- [x] Share the existing exact-SHA readiness calculation with `scheduler.recommend` so only useful validation contributes to back-pressure. Hide new claim recommendations when the current policy would reject them. Preserve existing `next` lists and expose PR, head SHA, and missing protocol evidence on each validation task. No new GitHub requests, journal events, or merge rules.
+- [x] Document that `next` reads a snapshot: check the live PR head before testing and before voting, and check required CI and review separately on GitHub. Verify with the focused tests and full suite.
+
+## Pilot measurement
+
+Run comparable, narrowly scoped tasks with GitHub issues, PRs, CI, and the same review rules in both groups. Add NEXUS reservations and recommendations in only one group. Leave PRs and evidence public; record reviewer minutes privately as aggregate time, not per-person telemetry. Compare redundant PRs per outcome, time from work availability to a complete exact-SHA review packet, maintainer minutes per accepted merge, and regressions over the same follow-up period. Record blocked and unfinished outcomes too. Keep the extra coordination only if it saves maintainer time without worse evidence or regression rates. A local rehearsal checks correctness; it does not measure savings.

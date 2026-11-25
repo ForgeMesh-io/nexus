@@ -36,14 +36,20 @@ def _blocks_count(state: State, task: Task) -> int:
 def recommend(state: State, actor: str, capabilities: set[str], salt: str = "", limit: int = 5) -> dict:
     mode = mode_for(state, actor, salt)
     validate = []
+    targets = {}
     for t in state.tasks.values():
         if t.status in {SUBMITTED, VALIDATING} and t.submission and actor not in (t.claimant, t.submission["author"]) \
                 and actor not in t.votes and set(t.definition.get("hardware", [])) <= capabilities:
-            age = t.submission.get("at", "")
-            validate.append((t.definition["priority"], age, t.id))
+            needs = state.validation_needs(t)
+            if needs["independent_passes"] or (needs["trusted_pass"] and state.is_trusted_validator(actor)):
+                sub = t.submission
+                targets[t.id] = {"pr": sub["pr"], "head_sha": sub["head_sha"], "missing": needs}
+                validate.append((t.definition["priority"], sub.get("at", ""), t.id))
     validate.sort()
+    validation_ids = [x[-1] for x in validate[:limit]]
     develop = []
-    for t in state.tasks.values():
+    can_claim = not state.policy.get("paused") and state.active_claims(actor) < state.policy["max_active_claims_per_user"]
+    for t in state.tasks.values() if can_claim else ():
         d = t.definition
         if t.status not in CLAIMABLE or not state.deps_satisfied(t) or state.conflicts(t):
             continue
@@ -63,7 +69,8 @@ def recommend(state: State, actor: str, capabilities: set[str], salt: str = "", 
         "mode": mode,
         "validation_queue": state.validation_queue(),
         "in_review": sum(1 for t in state.tasks.values() if t.status in IN_REVIEW),
-        "validate": [x[-1] for x in validate[:limit]],
+        "validate": validation_ids,
+        "validation_targets": {tid: targets[tid] for tid in validation_ids},
         "claim": [x[-1] for x in develop[:limit]],
         "paused": bool(state.policy.get("paused")),
     }

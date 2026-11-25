@@ -3,8 +3,8 @@
 Contributions go through the ForgeMesh protocol, even for ForgeMesh itself.
 
 1. Read [AGENTS.md](AGENTS.md) (applies to humans too) and [PROTOCOL.md](PROTOCOL.md).
-2. Find a task: `python -m forgemesh next --repo ForgeMesh-io/nexus --actor <login>`, or browse `.forgemesh/tasks/`.
-3. Claim it by commenting `/fm claim <ID>` on the pinned coordination issue. Wait for ✅.
+2. Find where to help: `python -m forgemesh next --repo ForgeMesh-io/nexus --actor <login>`. If directed to `validate`, follow the exact-SHA PR handoff in [AGENTS.md](AGENTS.md) instead of opening a new PR. Check existing issues and PRs before choosing a `claim` task.
+3. For uncovered work, comment `/fm claim <ID>` on the pinned coordination issue. Wait for the journal to record the accepted claim before starting.
 4. Fork, branch `fm/<ID>-<slug>`, keep the change small and inside the task's scope.
 5. Run `python -m pytest -q` (or the task's validation commands in the sandbox).
 6. Open a PR with the template, then comment `/fm submit <ID> #<PR>`.

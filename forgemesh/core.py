@@ -138,8 +138,30 @@ class State:
         return sum(1 for t in self.tasks.values()
                    if t.status in ACTIVE and component in t.definition.get("components", []))
 
+    def active_claims(self, actor: str) -> int:
+        return sum(1 for t in self.tasks.values() if t.claimant == actor and t.status in LEASED)
+
+    def is_trusted_validator(self, actor: str) -> bool:
+        return _is_maintainer(self, actor) or actor in self.policy.get("trusted_validators", [])
+
+    def validation_needs(self, task: Task) -> dict:
+        p, risk, sub = self.policy, task.definition["risk"], task.submission
+        sha = sub["head_sha"]
+        passes = [v for v, x in task.votes.items() if x["sha"] == sha and x["verdict"] == "pass"]
+        maintainer_required = risk_at_least(risk, p["maintainer_approval_from"]) or bool(sub.get("violations"))
+        return {
+            "independent_passes": max(0, p["required_passes"][risk] - len(passes)),
+            "trusted_pass": risk_at_least(risk, p["trusted_vote_from"]) and not any(self.is_trusted_validator(v) for v in passes),
+            "maintainer_approval": maintainer_required and (task.approval or {}).get("sha") != sha,
+        }
+
     def validation_queue(self) -> int:
-        return sum(1 for t in self.tasks.values() if t.status in {SUBMITTED, VALIDATING})
+        count = 0
+        for task in self.tasks.values():
+            if task.status in {SUBMITTED, VALIDATING}:
+                needs = self.validation_needs(task)
+                count += bool(needs["independent_passes"] or needs["trusted_pass"])
+        return count
 
     def to_json(self) -> dict:
         return {
@@ -163,10 +185,6 @@ def _is_maintainer(state: State, actor: str) -> bool:
     return actor == SYSTEM or actor in state.policy.get("maintainers", [])
 
 
-def _is_trusted(state: State, actor: str) -> bool:
-    return _is_maintainer(state, actor) or actor in state.policy.get("trusted_validators", [])
-
-
 def _end_attempt(task: Task, now: datetime, outcome: str) -> None:
     if task.attempts and task.attempts[-1]["to"] is None:
         task.attempts[-1].update(to=fmt_time(now), outcome=outcome)
@@ -186,7 +204,7 @@ def _claim(state, task, ev):
     if not state.deps_satisfied(task):
         missing = [d for d in task.definition.get("depends_on", []) if d not in state.tasks or state.tasks[d].status != MERGED]
         raise Rejected("blocked by unfinished dependencies: " + ", ".join(missing))
-    active = sum(1 for t in state.tasks.values() if t.claimant == actor and t.status in LEASED)
+    active = state.active_claims(actor)
     if active >= p["max_active_claims_per_user"]:
         raise Rejected(f"@{actor} already holds {active} active claims (limit {p['max_active_claims_per_user']})")
     for comp in task.definition.get("components", []):
@@ -268,36 +286,23 @@ def _submit(state, task, ev):
     return f"submission #{sub['pr']} @ {sub['head_sha'][:12]} recorded, waiting for independent validation{note}"
 
 
-def _required(state: State, task: Task) -> dict:
-    risk = task.definition["risk"]
-    p = state.policy
-    return {
-        "passes": p["required_passes"][risk],
-        "trusted": risk_at_least(risk, p["trusted_vote_from"]),
-        "maintainer": risk_at_least(risk, p["maintainer_approval_from"]) or bool(task.submission and task.submission.get("violations")),
-    }
-
-
 def _evaluate(state: State, task: Task) -> str:
     sha = task.submission["head_sha"]
-    votes = {v: x for v, x in task.votes.items() if x["sha"] == sha}
-    req = _required(state, task)
-    fails = [v for v, x in votes.items() if x["verdict"] == "fail"]
-    if any(_is_trusted(state, v) for v in fails) or len(fails) >= req["passes"]:
+    fails = [v for v, x in task.votes.items() if x["sha"] == sha and x["verdict"] == "fail"]
+    threshold = state.policy["required_passes"][task.definition["risk"]]
+    if any(state.is_trusted_validator(v) for v in fails) or len(fails) >= threshold:
         task.status = CHANGES_REQUESTED
         task.lease_expires = _new_lease(state, task)
         return "changes requested by validators: " + ", ".join("@" + v for v in sorted(fails))
-    passes = [v for v, x in votes.items() if x["verdict"] == "pass"]
-    ok = (len(passes) >= req["passes"]
-          and (not req["trusted"] or any(_is_trusted(state, v) for v in passes))
-          and (not req["maintainer"] or (task.approval and task.approval["sha"] == sha)))
+    needs = state.validation_needs(task)
+    ok = not any(needs.values())
     task.status = READY_TO_MERGE if ok else VALIDATING
     missing = []
-    if len(passes) < req["passes"]:
-        missing.append(f"{req['passes'] - len(passes)} more independent pass vote(s)")
-    if req["trusted"] and not any(_is_trusted(state, v) for v in passes):
+    if needs["independent_passes"]:
+        missing.append(f"{needs['independent_passes']} more independent pass vote(s)")
+    if needs["trusted_pass"]:
         missing.append("a pass from a trusted validator")
-    if req["maintainer"] and not (task.approval and task.approval["sha"] == sha):
+    if needs["maintainer_approval"]:
         missing.append("maintainer approval")
     return "ready to merge" if ok else "still needs " + ", ".join(missing)
 

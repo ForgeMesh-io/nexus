@@ -89,6 +89,10 @@ Always: the author cannot vote on their own submission; a pass from distinct acc
 
 The split is a stable hash of the participant and the day, so it is deterministic and needs no coordination. Within a mode, tasks are ordered by: review-type tasks first when validating, priority, number of tasks they unblock, and specificity of the hardware they need (participants with rare hardware get the tasks that need it).
 
+The `validate` and `claim` lists contain task IDs. `validation_targets` maps each recommended validation ID to its PR number, recorded `head_sha`, and missing independent passes, trusted pass, or maintainer approval. A task waiting only for maintainer approval remains in `in_review` but does not count toward `validation_queue` or ask for another vote. When only a trusted pass is missing from the votes, only a trusted validator is directed there. The paused flag and the existing per-participant lease limit suppress new claims, not pending validation.
+
+`next` reads the journal, not live PRs or CI. Confirm the PR is open and its head matches the recorded SHA before testing, then recheck the head before voting. If the journal is behind GitHub, wait for reconciliation or choose other work. Check required CI and GitHub review on the PR itself before asking for a merge.
+
 ## 7. Trust
 
 See [SECURITY.md](SECURITY.md) and [THREAT_MODEL.md](THREAT_MODEL.md). In short: the participation prompt carries the SHA-256 of the registry's initial `root.json`; the agent verifies it with a trusted tool, then fetches swarm manifests through a TUF client. Unverifiable identity ⇒ stop.

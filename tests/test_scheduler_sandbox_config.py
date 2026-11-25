@@ -4,10 +4,10 @@ from pathlib import Path
 import pytest
 
 from forgemesh import commands, config, sandbox, scheduler
-from forgemesh.core import fold
+from forgemesh.core import SYSTEM, fold
 from forgemesh.fingerprint import patch_id
 
-from .test_core import SHA, base, ev, submit, task
+from .test_core import SHA, base, ev, submit, task, vote
 
 DIGEST = "ghcr.io/forgemesh-io/nexus@sha256:" + "0" * 64
 
@@ -55,6 +55,41 @@ def test_recommend_falls_back_to_claims_when_the_validation_queue_is_ineligible(
     rec = scheduler.recommend(state, "alice", set())
     assert rec["mode"] == "develop"
     assert rec["claim"] == ["NX-0002"] and rec["validate"] == []
+
+
+def test_maintainer_only_blocker_does_not_request_more_passes():
+    events = base(task(), task("NX-0002")) + [
+        ev("claim", task="NX-0001"), submit(violations=["protected.py"]), vote("bob"),
+    ]
+    rec = scheduler.recommend(fold(events), "carol", set())
+    assert rec["in_review"] == 1 and rec["validation_queue"] == 0
+    assert rec["mode"] == "develop" and rec["claim"] == ["NX-0002"]
+    assert rec["validate"] == [] and rec["validation_targets"] == {}
+
+
+def test_recommend_reserves_a_missing_trusted_pass_for_trusted_actors():
+    events = base(task(risk="high")) + [ev("claim", task="NX-0001"), submit(pr=7), vote("bob")]
+    assert scheduler.recommend(fold(events), "carol", set())["validate"] == ["NX-0001"]
+    state = fold(events + [vote("carol")])
+    assert scheduler.recommend(state, "dave", set())["validate"] == []
+    rec = scheduler.recommend(state, "trusty", set())
+    assert rec["validation_queue"] == 1 and rec["validate"] == ["NX-0001"]
+    assert rec["validation_targets"]["NX-0001"] == {
+        "pr": 7, "head_sha": SHA,
+        "missing": {"independent_passes": 0, "trusted_pass": True, "maintainer_approval": True},
+    }
+
+
+@pytest.mark.parametrize("paused", [False, True])
+def test_recommend_does_not_offer_claims_the_policy_would_reject(paused):
+    events = base(task(), task("NX-0002"), task("NX-0003"), max_active_claims_per_user=1)
+    events += [ev("claim", task="NX-0001"), ev("claim", task="NX-0003", actor="bob"),
+               submit(actor="bob", t="NX-0003", pr=3),
+               ev("policy", actor=SYSTEM, policy={**events[0]["policy"], "paused": paused})]
+    state = fold(events)
+    rec = scheduler.recommend(state, "alice", set())
+    assert rec["claim"] == [] and rec["validate"] == ["NX-0003"] and rec["mode"] == "validate"
+    assert scheduler.recommend(state, "carol", set())["claim"] == ([] if paused else ["NX-0002"])
 
 
 # ---- commands (untrusted input) ---------------------------------------------
