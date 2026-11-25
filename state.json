@@ -1,0 +1,111 @@
+{
+ "clock": "2026-11-25T13:11:37Z",
+ "paused": false,
+ "tasks": {
+  "NX-0001": {
+   "approval": null,
+   "attempts": [],
+   "block_reason": null,
+   "claimant": null,
+   "display_status": "AVAILABLE",
+   "id": "NX-0001",
+   "lease_expires": null,
+   "renewals": 0,
+   "status": "AVAILABLE",
+   "submission": null,
+   "votes": {}
+  },
+  "NX-0002": {
+   "approval": null,
+   "attempts": [],
+   "block_reason": null,
+   "claimant": null,
+   "display_status": "AVAILABLE",
+   "id": "NX-0002",
+   "lease_expires": null,
+   "renewals": 0,
+   "status": "AVAILABLE",
+   "submission": null,
+   "votes": {}
+  },
+  "NX-0003": {
+   "approval": null,
+   "attempts": [],
+   "block_reason": null,
+   "claimant": null,
+   "display_status": "AVAILABLE",
+   "id": "NX-0003",
+   "lease_expires": null,
+   "renewals": 0,
+   "status": "AVAILABLE",
+   "submission": null,
+   "votes": {}
+  },
+  "NX-0004": {
+   "approval": null,
+   "attempts": [],
+   "block_reason": null,
+   "claimant": null,
+   "display_status": "AVAILABLE",
+   "id": "NX-0004",
+   "lease_expires": null,
+   "renewals": 0,
+   "status": "AVAILABLE",
+   "submission": null,
+   "votes": {}
+  },
+  "NX-0005": {
+   "approval": null,
+   "attempts": [],
+   "block_reason": null,
+   "claimant": null,
+   "display_status": "AVAILABLE",
+   "id": "NX-0005",
+   "lease_expires": null,
+   "renewals": 0,
+   "status": "AVAILABLE",
+   "submission": null,
+   "votes": {}
+  },
+  "NX-0006": {
+   "approval": null,
+   "attempts": [],
+   "block_reason": null,
+   "claimant": null,
+   "display_status": "AVAILABLE",
+   "id": "NX-0006",
+   "lease_expires": null,
+   "renewals": 0,
+   "status": "AVAILABLE",
+   "submission": null,
+   "votes": {}
+  },
+  "NX-0007": {
+   "approval": null,
+   "attempts": [],
+   "block_reason": null,
+   "claimant": null,
+   "display_status": "BLOCKED",
+   "id": "NX-0007",
+   "lease_expires": null,
+   "renewals": 0,
+   "status": "AVAILABLE",
+   "submission": null,
+   "votes": {}
+  },
+  "NX-0008": {
+   "approval": null,
+   "attempts": [],
+   "block_reason": null,
+   "claimant": null,
+   "display_status": "AVAILABLE",
+   "id": "NX-0008",
+   "lease_expires": null,
+   "renewals": 0,
+   "status": "AVAILABLE",
+   "submission": null,
+   "votes": {}
+  }
+ },
+ "version": 1
+}
