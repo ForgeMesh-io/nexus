@@ -11,7 +11,7 @@ A compromised swarm repository cannot rewrite the registry or another swarm's ru
 
 - Requests come in as GitHub issue comments (`/fm claim`, `/fm submit`, ...). Comments are an *inbox*, not the source of truth: they can be edited or deleted.
 - A trusted workflow ingests new comments into an append-only `journal.jsonl` on the swarm repository's `forgemesh-state` branch. Ingestion order (journal order) is the canonical total order.
-- The task state is a pure, deterministic fold over the journal (`forgemesh.state.fold`). Any run, on any machine, computes the same state from the same journal.
+- The task state is a pure, deterministic fold over the journal (`forgemesh.core.fold`). Any run, on any machine, computes the same state from the same journal.
 - Writes use Git's compare-and-swap: a push that is not a fast-forward is rejected, the writer re-fetches, re-ingests and retries. `concurrency:` in GitHub Actions is only an optimisation; correctness does not depend on it (runs can be cancelled or dropped).
 - A scheduled reconciliation run re-reads all comments, so a lost or cancelled run only delays processing.
 - Because the fold is append-only, a decision (e.g. who won a claim) never flips after it has been published.

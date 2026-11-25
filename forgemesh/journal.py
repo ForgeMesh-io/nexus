@@ -87,7 +87,7 @@ class Store:
         _git(self.dir, "add", "journal.jsonl", "state.json", "decisions.jsonl", "cursor.json")
         if _git(self.dir, "diff", "--cached", "--quiet", check=False).returncode == 0:
             return
-        _git(self.dir, "-c", "user.name=forgemesh-coordinator", "-c", "user.email=forgemesh@users.noreply.github.com",
+        _git(self.dir, "-c", "user.name=github-actions[bot]", "-c", "user.email=41898282+github-actions[bot]@users.noreply.github.com",
              "commit", "--quiet", "-m", message)
         r = _git(self.dir, "push", "--quiet", self.remote, f"HEAD:refs/heads/{self.branch}", check=False)
         if r.returncode != 0:

@@ -1,0 +1,13 @@
+# Protected paths: changes need a review from a human maintainer.
+*                          @FRGMesh
+/.forgemesh/               @FRGMesh
+/.github/                  @FRGMesh
+/forgemesh/core.py         @FRGMesh
+/forgemesh/registry.py     @FRGMesh
+/forgemesh/sandbox.py      @FRGMesh
+/forgemesh/schemas/        @FRGMesh
+/docker/                   @FRGMesh
+/tests/                    @FRGMesh
+/SECURITY.md               @FRGMesh
+/GOVERNANCE.md             @FRGMesh
+/THREAT_MODEL.md           @FRGMesh

@@ -11,7 +11,7 @@ Use GitHub private vulnerability reporting on this repository ("Security" tab â†
 **Keys.**
 - Root: 3 keys held offline by humans, threshold 2. Never in Git, CI, containers or logs. Ceremony: [docs/KEY_CEREMONY.md](docs/KEY_CEREMONY.md).
 - Targets: offline, founder. Delegates `swarms/<name>/*` to each swarm's key(s).
-- Snapshot / timestamp: online, short expiry (7 days / 1 day), may be held by a protected CI environment.
+- Snapshot / timestamp: online, short expiry (7 days / 2 days), re-signed daily by the registry workflow, may be held by a protected CI environment.
 - Development keys are created by `forgemesh.registry.init_dev`, labelled `DEV`, stored outside the repository and marked `"environment": "development"` inside `root.json`.
 
 **Images.** Official images are built only by `.github/workflows/images.yml` on tags, behind a `release` environment requiring maintainer approval. They carry Sigstore build-provenance attestations. Swarm manifests pin images by `sha256` digest; a substituted image has a different digest and is refused. Verify provenance with `gh attestation verify oci://IMAGE@DIGEST --owner ForgeMesh-io`.

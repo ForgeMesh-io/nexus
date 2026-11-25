@@ -34,7 +34,7 @@
 | T9 | Prompt injection in issues/PRs | Strict command grammar, no interpolation, agent instructions treat content as data | `test_parser_is_strict`, `test_submission_flow_with_pr_and_prompt_injection` |
 | T10 | Forged/tampered manifest | TUF signatures | `test_tampered_manifest_is_rejected` |
 | T11 | Signature by unknown key | TUF key ids from delegations | `test_unknown_key_signature_is_rejected` |
-| T12 | Expired metadata / freeze attack | TUF expiry; timestamp valid 1 day | `test_expired_metadata_is_rejected` |
+| T12 | Expired metadata / freeze attack | TUF expiry; timestamp valid 2 days | `test_expired_metadata_is_rejected` |
 | T13 | Rollback to older metadata | TUF version monotonicity | `test_rollback_to_old_metadata_is_rejected` |
 | T14 | Swarm key signs for another swarm | Terminating delegations restricted to `swarms/<name>/*` | `test_swarm_cannot_sign_for_another_swarm` |
 | T15 | Root key compromise (one key) | 2-of-3 threshold | `test_root_rotation_with_threshold`, `test_old_root_key_leak_cannot_forge_after_rotation` |

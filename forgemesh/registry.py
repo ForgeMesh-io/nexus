@@ -29,7 +29,7 @@ from tuf.api.metadata import (DelegatedRole, Delegations, Metadata, MetaFile, Ro
 from tuf.api.serialization.json import JSONSerializer
 
 SER = JSONSerializer(compact=False)
-EXPIRY = {"root": 365, "targets": 180, "snapshot": 7, "timestamp": 1, "swarm": 90}
+EXPIRY = {"root": 365, "targets": 180, "snapshot": 7, "timestamp": 2, "swarm": 90}
 
 
 def _now():
@@ -95,13 +95,15 @@ class Repo:
             p = self.meta / f"{role}.json"
             if p.exists():
                 snap.signed.meta[f"{role}.json"] = MetaFile(self.load(role).signed.version)
-        snap.signed.version += 1
+        # Unix-time versions stay monotonic even when CI re-signs without committing the previous output.
+        stamp = int(_now().timestamp())
+        snap.signed.version = max(snap.signed.version + 1, stamp)
         snap.signed.expires = _exp("snapshot")
         self.sign(snap, [snapshot_signer])
         self.save(snap, "snapshot")
         ts = self.load("timestamp")
         ts.signed.snapshot_meta = MetaFile(snap.signed.version)
-        ts.signed.version += 1
+        ts.signed.version = max(ts.signed.version + 1, stamp)
         ts.signed.expires = _exp("timestamp")
         self.sign(ts, [timestamp_signer])
         self.save(ts, "timestamp", versioned=False)
