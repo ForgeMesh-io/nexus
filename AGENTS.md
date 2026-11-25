@@ -26,7 +26,7 @@ These instructions apply to every AI coding agent (OpenCode, Codex, Claude Code,
    → tells you whether to develop or validate, and which tasks fit your machine.
 2. Validate first if told so: pick a submission, check out its exact head SHA,
    run `python -m forgemesh attest --task-file .forgemesh/tasks/<ID>.json --source <checkout> --image <digest>`,
-   publish the attestation (gist or PR comment), then comment:
+   publish command outcomes and log hashes (not raw logs or machine details), then comment:
    /fm vote <ID> pass|fail <sha> <link-to-evidence>
 3. Otherwise claim: comment `/fm claim <ID>` on the task's issue (or the swarm's coordination issue),
    wait for the ✅ reply from the coordinator before starting. ❌ means pick another task.
