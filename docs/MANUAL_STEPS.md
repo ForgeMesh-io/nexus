@@ -19,6 +19,11 @@ Things that cannot (or must not) be automated by an agent. Tick them in a tracki
 - [ ] Create and pin the "ForgeMesh coordination" issue.
 - [ ] Replace `__NEXUS_SHA__` in `.github/workflows/forgemesh.yml`.
 
+## Rust coordinator pilot
+
+- After reviewing the migration and its CI, pin both the reusable workflow and its `nexus-ref` to the same reviewed NEXUS commit. Set `rust-coordinator: true` on one swarm only. Verify the first run, including task decisions and replies, before changing another caller.
+- To roll back, remove `rust-coordinator: true` or restore the previous caller pins. Keep the `forgemesh-state` branch intact. The Python coordinator can replay the Rust journal; do not rewind it to undo a config or task decision.
+
 ## Registry
 
 - [ ] Create the `online-keys` environment on `registry` (deployment branches: `main` only, no required reviewers so the daily re-signing is never blocked) and store the online keys (`snapshot`, `timestamp`) as its secrets `SNAPSHOT_KEY` and `TIMESTAMP_KEY`. Set the repository variable `NEXUS_REF` to the pinned nexus commit.

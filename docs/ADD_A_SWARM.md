@@ -16,6 +16,8 @@ The founder decides. Reasons to refuse: legal risk, no maintainer, no clear obje
 4. Apply the repository settings in [MANUAL_STEPS.md](MANUAL_STEPS.md) → "Every swarm repository".
 5. Create the coordination issue ("ForgeMesh coordination"), pin it, and lock nothing: comments are the inbox.
 
+If some tasks need private resources or a connected device, follow [Optional project resources](PROJECT_RESOURCES.md). Keep work available to participants without them.
+
 ## 3. Registry
 
 1. The swarm key holder generates the swarm key (public part only shared).

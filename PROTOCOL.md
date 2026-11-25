@@ -89,6 +89,8 @@ Always: the author cannot vote on their own submission; a pass from distinct acc
 
 The split is a stable hash of the participant and the day, so it is deterministic and needs no coordination. Within a mode, tasks are ordered by: review-type tasks first when validating, priority, number of tasks they unblock, and specificity of the hardware they need (participants with rare hardware get the tasks that need it).
 
+Optional `resource:<id>` entries in a task's `hardware` list are [local onboarding capabilities](docs/PROJECT_RESOURCES.md). They are not auto-detected, not added to comments, and not recorded in the journal. They apply to both claim and validation recommendations.
+
 ## 7. Trust
 
 See [SECURITY.md](SECURITY.md) and [THREAT_MODEL.md](THREAT_MODEL.md). In short: the participation prompt carries the SHA-256 of the registry's initial `root.json`; the agent verifies it with a trusted tool, then fetches swarm manifests through a TUF client. Unverifiable identity ⇒ stop.

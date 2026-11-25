@@ -21,6 +21,11 @@ on:
         required: false
         type: boolean
         default: false
+      rust-coordinator:
+        description: Use the Rust candidate instead of the Python coordinator
+        required: false
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -46,10 +51,19 @@ jobs:
           path: nexus
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        if: ${{ !inputs.rust-coordinator }}
         with:
           python-version: "3.12"
       - name: Install pinned dependencies
+        if: ${{ !inputs.rust-coordinator }}
         run: pip install --require-hashes --no-deps -r nexus/docker/requirements.lock
+      - name: Build and test Rust coordinator
+        if: inputs.rust-coordinator
+        working-directory: nexus
+        run: |
+          rustup toolchain install 1.96.0 --profile minimal
+          cargo +1.96.0 test --locked --profile fast
+          cargo +1.96.0 build --locked --release
       - name: Prepare state clone
         env:
           GH_TOKEN: ${{ github.token }}
@@ -62,8 +76,11 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           FULL_SCAN: ${{ inputs.full-scan && '1' || '' }}
+          RUST_COORDINATOR: ${{ inputs.rust-coordinator && '1' || '' }}
           PYTHONPATH: nexus
         run: |
           args=()
           if [ -n "$FULL_SCAN" ]; then args+=(--full-scan); fi
-          python -m forgemesh coordinate --repo "$REPO" --state-dir state --config-root swarm "${args[@]}"
+          coordinator=(python -m forgemesh)
+          if [ -n "$RUST_COORDINATOR" ]; then coordinator=(nexus/target/release/forgemesh); fi
+          "${coordinator[@]}" coordinate --repo "$REPO" --state-dir state --config-root swarm "${args[@]}"
