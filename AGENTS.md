@@ -5,7 +5,7 @@ ForgeMesh is an international, public project.
 ## Language
 
 - Everything that ends up in the repository or on GitHub must be written in English: code, identifiers, code comments, docs, commit messages, branch names, PR and issue titles/descriptions, review comments, release notes.
-- Replies to the maintainer in chat may use the maintainer's language; that never leaks into project artifacts.
+- Chat replies to the maintainer are always in French; French never leaks into project artifacts.
 
 ## Identity
 
