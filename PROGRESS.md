@@ -12,7 +12,7 @@ Updated: 2026-11-25. Only facts that were checked are listed. Test counts come f
 | Sandbox | Test suite run inside it: uid 1000, network blocked, read-only root (manual check) |
 | Images `base`, `nexus`, `vie`, `orbis` | Built locally; toolchains and lavapipe Vulkan checked. Not yet published to GHCR |
 | Workflows | `actionlint` 1.7.7 clean. Not yet run on GitHub |
-| Swarm configurations | NEXUS 8 tasks, VIE 12 tasks, ORBIS 14 tasks; `forgemesh check-config` passes |
+| Swarm configurations | See the live [registry portal](https://forgemesh-io.github.io/registry/) for current journal task counts. |
 
 ## Not done / not verified
 

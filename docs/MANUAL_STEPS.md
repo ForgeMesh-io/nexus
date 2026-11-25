@@ -40,4 +40,4 @@ The read-only `NX-0006` pilot does not need an image. An outside contributor can
 
 ## VIE
 
-- [ ] Legal review before any code: no Microsoft SDKs, keys, firmware, game files or leaked material in the repository or in tasks.
+- [ ] Follow the [XCL fork transition](superpowers/plans/2026-11-25-vie-xcl-fork.md) and [VIE legal rules](https://github.com/ForgeMesh-io/vie/blob/main/LEGAL.md). Keep SDK material, keys, firmware, game files and leaked material out of the repository and tasks.
