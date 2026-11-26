@@ -143,6 +143,15 @@ All four receipts matched the engine log individually (**3,160 input + 98 output
 
 **Observed:** Ministral started `guide` once, then repeated the same `start` nine times despite `already_started` receipts and the instruction to stop on a refusal. It never read or submitted. All **10 received receipts** matched the engine individually: input counts `760, 785, 812, 839, 866, 893, 920, 947, 974, 1001`; output counts `10, 10, 10, 10, 10, 13, 10, 13, 13, 13` (**8,797 input + 112 output = 8,909 known tokens**). Engine task `122`, the eleventh request, started but had no final receipt by the **900 s** dispatcher deadline. The summary showed `requests: 11`, `tools: 10`, `unknown: 1`, `unknown_usage` and no report; the contribution assertion exited 1. This is an incomplete probe, not a fully metered zero-output run. The prompt change was insufficient; it does not establish why the model kept repeating `start`.
 
+**One selection after a successful reservation:** with the same isolated engine, run:
+
+```sh
+timeout 915 "$PYTHON" -I -u docs/nexus-pilot/rehearsals/llama-workflow.py \
+  docs/nexus-pilot/rehearsals/trial-budget.py 9182 --native-template --post-reservation
+```
+
+The probe scripts `start` through the real in-memory dispatcher, then puts its `{"started":"guide"}` result immediately before the next-action cue. It shows all four action shapes without giving a sequence or the answer, calls the engine once, and stops after that choice. **Observed in 91 s:** the dispatcher admitted `{"op":"read","path":"guide.md","first":1,"last":1}`. That line is only the title; the model did not read the finding on line 2. The sole engine task and sole client receipt matched (**744 input + 32 output = 776 tokens**, `unknown: 0`). The gate's two counted requests and two tool calls include the scripted, zero-token `start` and its reservation. The probe exited 0 on the selection and scope checks, with no report and no second model turn. This does not isolate a placement effect: it also removed the earlier ordered wording and began with a scripted reservation.
+
 The runner returns known input/output totals and their cached/reasoning subsets for each worker, alongside counters, stops, traces and reports. Unknown attempts remain separate; in a two-worker rehearsal, losing one response does not erase already settled usage from the other worker. A cited result from a two-line trusted fixture is not sufficient to open the frozen pools. First exercise real-model context limits, source scoping and worker isolation with non-frozen inputs. The runner must also preserve the interrupted-run policy: discard late output, and disqualify any arm whose final usage is unknown.
 
 ## Blind review and analysis (assessor/operator only)
