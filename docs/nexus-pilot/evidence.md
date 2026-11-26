@@ -38,7 +38,7 @@ unshare --user --map-root-user --net bash -eu -c '
 ' bash "$repo"
 ```
 
-Observed from outside the checkout: **144 passed in 34.86 s**, `OK: swarm 'nexus', 8 task(s)`. SHA-256 of the tested `forgemesh_nexus-0.1.0a1-py3-none-any.whl`: `6286620d7e56c0b3dec0d1b8f4d30c1431030bfd181a03ad44f85396107e48e8`. This identifies the tested build, not a signed release or promise of byte-identical builds. See the [operator rehearsal](operators.md#rehearse-without-github) for the installed console commands and the [participant guide](participants.md) for the MCP steps.
+Observed from outside the checkout: **164 passed in 36.47 s**, `OK: swarm 'nexus', 8 task(s)`. SHA-256 of the tested `forgemesh_nexus-0.1.0a1-py3-none-any.whl`: `d96f827af6ea2b8bcdb93c6154441bfd8b532c8d6538d883173c2c8e2329776d`. This identifies the tested build, not a signed release or promise of byte-identical builds. See the [operator rehearsal](operators.md#rehearse-without-github) for the installed console commands and the [participant guide](participants.md) for the MCP steps.
 
 For the historical check with a read-only mount and no network, use the pre-existing local test image:
 
