@@ -69,6 +69,30 @@ Follow the [operator rehearsal](../operators.md#rehearse-without-github) for enr
 
 **Observed offline setup:** ran the snippet in a fresh network namespace with the verified `0.1.0a1` wheel. Both file hashes matched and all six menus were created (byte-identical across arms within each pool). In both disposable ledgers, `discover` returned exactly the manifest tasks, a second contributor's scripted claim on the same task returned `busy`, and that contributor could claim the other task. A synthetic report with a distinct reviewer's `pass` still could not be authorized (`publication_quota`); neither audit contained `authorized`, `dispatch_started` or `published`. Contributors were revoked and both ledgers stopped. No model, harness metering, blind assessor or real maintainer timing was exercised.
 
+## Offline harness qualification
+
+**OpenCode v2.0.21 using `steps` is not qualified.** A [scripted loopback provider](opencode-metering.py) sent three tool calls per turn, omitted usage on the first successful primary response, returned a 429 on the final configured step, and delayed the retry response. Two sessions reached the provider concurrently in each two-worker arm. The baselines returned actual file reads; the Nexus arm returned actual MCP discovery results from a disposable ledger with publication disabled. This is a harness characterization, not a run on the frozen tasks.
+
+From the checkout on Linux, with `PYTHON` set as above and OpenCode v2.0.21 on `PATH`:
+
+```sh
+unshare --user --map-root-user --net bash -eu -c '
+  ip link set lo up
+  "$1" -I docs/nexus-pilot/rehearsals/opencode-metering.py
+' bash "$PYTHON"
+```
+
+```text
+opencode v2.0.21
+solo: HTTP attempts=14/12 (13 primary), tool results=33/24, reported primary tokens >= 88220/64000, continued after missing usage=1, late outputs rendered=1
+independent: HTTP attempts=16/12 (14 primary), tool results=30/24, reported primary tokens >= 80200/64000, continued after missing usage=2, late outputs rendered=2
+nexus: HTTP attempts=16/12 (14 primary), tool results=30/24, reported primary tokens >= 80200/64000, continued after missing usage=2, late outputs rendered=2
+```
+
+HTTP counts include failed attempts, retries and auxiliary title requests. The token lower bounds sum only mock-reported primary usage: 8,000 input + 20 output per measured response, including 6,000 cached and 10 reasoning tokens already in those fields. This calculation is external, not proof of OpenCode's internal token accounting. The late marker was rendered after an external 250 ms observation cutoff on the retry; no native run deadline or provider cancellation was configured or demonstrated. `steps` limited the agent loop and the request carried `max_completion_tokens: 32`, but neither enforced the shared budget. No real model, credentials, billable usage, human timing or GitHub writes were involved.
+
+**Offline gate only:** [trial-budget.py](trial-budget.py) has a common in-memory clock and atomic reservations for one or two workers, fixed partitions, and a stop signal. [The pytest cases](../../../tests/test_trial_budget.py) reached exactly 12 model attempts and 24 tool attempts in each arm, covered concurrent admissions and refusal of the last contested slot, and verified use of inclusive token totals, unknown/over-bound usage, lost responses, and deadline/cancellation with accounted but discarded results. This verifies the gate with scripted callbacks, not a full trial harness. It neither bounds an actual provider payload nor interrupts remote work by itself. The next qualification must include the actual model and tool dispatch paths, scoped source access, and a provider adapter that verifies its input bound, inclusive usage, output cap, deadline handling and billing behavior.
+
 ## Blind review and analysis (assessor/operator only)
 
 Obtain consent before timing people or collecting identifiers. Use a reviewer who did not generate, facilitate, or view any run. The operator assigns opaque report IDs, randomizes the complete batch (pre-register the seed privately), removes envelope metadata and coordination self-identifiers without changing claims, and withholds the ID → arm/run map until the reviewer locks all scores. Show task ID, report text, and pinned evidence only. Save guesses at attribution or accidental unblinding before reveal. Do not allow an agent to grade its own output.

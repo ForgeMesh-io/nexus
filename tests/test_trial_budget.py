@@ -1,0 +1,184 @@
+"""Offline checks for the experimental runner's dispatch gate."""
+
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from runpy import run_path
+from threading import Barrier, Event
+
+import pytest
+
+gate = run_path(str(Path(__file__).resolve().parents[1] / "docs/nexus-pilot/rehearsals/trial-budget.py"))
+Budget, Refused, Usage = (gate[name] for name in ("Budget", "Refused", "Usage"))
+
+
+def never(*args):
+    pytest.fail("a refused call was dispatched")
+
+
+def reply(*args):
+    return "ok", Usage(100, 20, cached=80, reasoning=10)
+
+
+@pytest.mark.parametrize("arm, workers", [("solo", 1), ("independent", 2), ("nexus", 2)])
+def test_frozen_attempt_partitions_under_contention(arm, workers):
+    budget = Budget(workers)
+    entered = Barrier(workers + 1, timeout=5)
+    finish = Event()
+
+    def send(deadline, stop):
+        entered.wait()
+        assert finish.wait(5)
+        return reply()
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        first = [pool.submit(budget.model, worker, 1000, send) for worker in range(workers)]
+        try:
+            entered.wait()
+            for worker in range(workers):
+                with pytest.raises(Refused, match="in_flight"):
+                    budget.model(worker, 1000, never)
+        finally:
+            finish.set()
+        assert [task.result() for task in first] == ["ok"] * workers
+
+    for worker in range(workers):
+        # One conclusively zero-charge failed response; the retry is a separate attempt.
+        assert budget.model(worker, 200, lambda *_: ("429", Usage(0, 0))) == "429"
+        for _ in range(12 // workers - 2):
+            assert budget.model(worker, 200, reply) == "ok"
+        with pytest.raises(Refused, match="request_limit"):
+            budget.model(worker, 200, never)
+
+        def failed_tool(*args):
+            raise ValueError("denied by tool")
+
+        with pytest.raises(ValueError, match="denied by tool"):
+            budget.tool(worker, failed_tool)
+        for _ in range(24 // workers - 1):
+            assert budget.tool(worker, lambda *_: "fixture") == "fixture"
+        with pytest.raises(Refused, match="tool_limit"):
+            budget.tool(worker, never)
+    assert sum(w["requests"] for w in budget.snapshot()) == 12
+    assert sum(w["tools"] for w in budget.snapshot()) == 24
+    assert sum(w["tokens"] for w in budget.snapshot()) == (12 - workers) * 120
+
+
+@pytest.mark.parametrize("workers", [1, 2])
+def test_reservation_uses_input_plus_output_without_borrowing_or_double_counting(workers):
+    budget = Budget(workers)
+    cap = 64000 // workers
+    with pytest.raises(Refused, match="token_limit"):
+        budget.model(0, cap + 1, never)
+    assert budget.model(0, cap, lambda *_: ("first", Usage(cap - 120, 1, cached=200))) == "first"
+    with pytest.raises(Refused, match="token_limit"):
+        budget.model(0, 120, never)
+    assert budget.model(0, 119, lambda *_: ("last", Usage(100, 19, cached=80, reasoning=10))) == "last"
+    with pytest.raises(Refused, match="token_limit"):
+        budget.model(0, 1, never)
+    assert budget.snapshot()[0] == {"requests": 2, "tools": 0, "tokens": cap, "unknown": 0}
+
+
+@pytest.mark.parametrize("usage, reason, tokens, unknown", [
+    (None, "unknown_usage", 0, 1),
+    (Usage(10, 3, cached=11), "unknown_usage", 0, 1),
+    (Usage(10, 3, reasoning=4), "unknown_usage", 0, 1),
+    (Usage(10, -1), "unknown_usage", 0, 1),
+    (Usage(199, 2), "usage_over_bound", 201, 0),
+])
+def test_unverifiable_or_excess_usage_stops_the_whole_arm(usage, reason, tokens, unknown):
+    budget = Budget(2)
+    with pytest.raises(Refused, match=reason):
+        budget.model(0, 200, lambda *_: ("not accepted", usage))
+    with pytest.raises(Refused, match=reason):
+        budget.model(1, 200, never)
+    with pytest.raises(Refused, match=reason):
+        budget.tool(1, never)
+    assert budget.snapshot()[0] == {"requests": 1, "tools": 0, "tokens": tokens, "unknown": unknown}
+
+
+def test_transport_failure_charges_an_attempt_and_prevents_retry():
+    budget = Budget(1)
+
+    def lost(*args):
+        raise TimeoutError("response lost")
+
+    with pytest.raises(TimeoutError, match="response lost"):
+        budget.model(0, 200, lost)
+    with pytest.raises(Refused, match="unknown_usage"):
+        budget.model(0, 200, never)
+    assert budget.snapshot()[0] == {"requests": 1, "tools": 0, "tokens": 0, "unknown": 1}
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+def test_late_or_cancelled_output_is_not_accepted_but_usage_is_kept(cancel):
+    now = [10.0]
+    budget = Budget(2, clock=lambda: now[0])
+
+    def slow(deadline, stop):
+        assert deadline == 910.0 and not stop.is_set()
+        if cancel:
+            budget.cancel()
+            assert stop.is_set()
+        else:
+            now[0] = deadline
+        return reply()
+
+    reason = "cancelled" if cancel else "deadline"
+    with pytest.raises(Refused, match=reason):
+        budget.model(0, 200, slow)
+    with pytest.raises(Refused, match=reason):
+        budget.model(1, 200, never)
+    with pytest.raises(Refused, match=reason):
+        budget.tool(1, never)
+    assert budget.snapshot()[0] == {"requests": 1, "tools": 0, "tokens": 120, "unknown": 0}
+
+
+def test_in_flight_tool_result_after_deadline_is_discarded():
+    now = [0.0]
+    budget = Budget(1, clock=lambda: now[0])
+
+    def slow(deadline, stop):
+        now[0] = deadline
+        return "do not use"
+
+    with pytest.raises(Refused, match="deadline"):
+        budget.tool(0, slow)
+    assert budget.snapshot()[0]["tools"] == 1
+
+
+def test_concurrent_tools_cannot_both_take_the_same_last_slot():
+    budget = Budget(2)
+    for _ in range(11):
+        budget.tool(0, lambda *_: None)
+    ready = Barrier(2, timeout=5)
+
+    def contender():
+        ready.wait()
+        try:
+            return budget.tool(0, lambda *_: "ran")
+        except Refused as exc:
+            return str(exc)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        attempts = [pool.submit(contender) for _ in range(2)]
+        assert sorted(task.result() for task in attempts) == ["ran", "tool_limit"]
+    assert budget.snapshot()[0]["tools"] == 12
+
+
+def test_unknown_usage_signals_other_in_flight_worker_and_discards_its_output():
+    budget = Budget(2)
+    entered = Event()
+
+    def second_worker(deadline, stop):
+        entered.set()
+        assert stop.wait(5)
+        return reply()
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pending = pool.submit(budget.model, 1, 200, second_worker)
+        assert entered.wait(5)
+        with pytest.raises(Refused, match="unknown_usage"):
+            budget.model(0, 200, lambda *_: ("unknown", None))
+        with pytest.raises(Refused, match="unknown_usage"):
+            pending.result(timeout=5)
+    assert budget.snapshot()[1] == {"requests": 1, "tools": 0, "tokens": 120, "unknown": 0}

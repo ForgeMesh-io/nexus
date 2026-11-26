@@ -1,0 +1,9 @@
+# Offline trial budget gate
+
+**Goal:** demonstrate the frozen arm limits before contacting a real model. This is a trial fixture, not a Nexus service or a spending system.
+
+1. In `tests/test_trial_budget.py`, use the same gate for one and two workers with the frozen defaults. Require exact per-worker request/tool counts, no borrowing, concurrent admission across workers and refusal of a second in-flight model request on the same worker. Assert that refusals never invoke the callback. Run the test before writing the gate.
+2. Test pre-dispatch token reservation, inclusive cached/reasoning totals, explicit zero-charge retries, missing/inconsistent/over-bound usage, and refusal after uncertainty. Test cancellation and the exact deadline with scripted responses and a monotonic clock. Keep usage for expired and cancelled in-flight results, but never hand those results to the next step. Count failed tools.
+3. Implement the smallest process-local gate under `docs/nexus-pilot/rehearsals/`. Keep the arm clock and all state transitions under one lock, run callbacks outside the lock, and never use OpenCode or provider counters for admission. Re-run the focused tests and wheel acceptance. Record what this proves, and what still requires a real adapter and enforced isolation.
+
+The gate cannot verify an adapter's token bound, stop remote work by itself, or prevent bypass by an unsandboxed harness. A future adapter must own the entire outbound model request (including tool schemas and hidden additions), have a provider-enforced output limit, expose non-overlapping usage, disable internal retries, and propagate the deadline. Do not introduce live credentials, network access, or spend in this step. No scored trial without those controls, consenting participants, and a blind assessor.
