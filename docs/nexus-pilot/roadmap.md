@@ -8,7 +8,7 @@
 | Project opt-in and useful work | 15 | 12 | Real fork consent exists; proposal and preflight checks are bounded. A real agent submitted a report; a patch passed the mechanical check and was rejected on substance. Get maintainer feedback on usefulness and document what signals can be missed. |
 | Live GitHub delivery | 20 | 9 | HTTP-double coverage and real read-only preflight. Narrow the App installation to the fork, publish one approved report, verify the bot/comment independently, reconcile without a second POST, and record refusal plus stop/revoke. |
 | Installation and onboarding | 25 | 10 | Wheel, CLI, MCP bridge, Antigravity model run, and host-policy tests exist. Package a reproducible candidate and have a non-technical volunteer install, connect from a compatible harness, submit, and detach without operator prompts. Test the documented safe fallback separately. |
-| Comparative value and release decision | 10 | 1 | Frozen tasks, limits, and a blind rubric exist; offline setup and the scripted admission gate are verified. OpenCode `steps` does not enforce the ceilings. Qualify the actual dispatch paths and secure consent, then record quality, actual resources, and active human minutes. No declared winner or release yet. |
+| Comparative value and release decision | 10 | 1 | Frozen tasks, limits, and a blind rubric exist; scripted dispatch is verified. OpenCode `steps` does not enforce the ceilings. The isolated local engine reports completed usage but did not demonstrate a clean stop with known usage. Qualify the runner and secure consent before recording scored quality, resources, or human time. No declared winner or release yet. |
 | **Total** | **100** | **60** | |
 
 ## Next in order

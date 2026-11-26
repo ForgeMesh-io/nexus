@@ -1,4 +1,4 @@
-"""In-memory admission gate for the offline three-arm rehearsal, not a provider adapter."""
+"""Experimental admission gate, action loop, and candidate local model transport."""
 
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -50,6 +50,7 @@ class Budget:
         self._tool_limit = 24 // workers
         self._token_limit = 64000 // workers
         self._workers = [dict(requests=0, tools=0, tokens=0, unknown=0) for _ in range(workers)]
+        self._usage = [Usage(0, 0) for _ in range(workers)]
         self._pending = set()
 
     def _halt(self, reason):
@@ -70,6 +71,11 @@ class Budget:
     def snapshot(self):
         with self._lock:
             return [state.copy() for state in self._workers]
+
+    def usage(self):
+        """Known inclusive totals; snapshot separately flags incomplete accounting."""
+        with self._lock:
+            return self._usage.copy()
 
     def _state(self, worker):
         if type(worker) is not int or not 0 <= worker < len(self._workers):
@@ -105,6 +111,9 @@ class Budget:
                     self._halt("unknown_usage")
                 else:
                     state["tokens"] += actual
+                    previous = self._usage[worker]
+                    self._usage[worker] = Usage(previous.input + usage.input, previous.output + usage.output,
+                                                previous.cached + usage.cached, previous.reasoning + usage.reasoning)
                     if actual > bound:
                         self._halt("usage_over_bound")
         with self._lock:
@@ -137,6 +146,7 @@ def prepare_llama(port, prompt):
             finished = Event()
             connection.connect()
             sock = connection.sock
+            sock.settimeout(max(0.001, deadline - monotonic()))
 
             def watch():
                 while not finished.wait(0.025):

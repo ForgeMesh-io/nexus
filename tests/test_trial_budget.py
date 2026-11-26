@@ -481,3 +481,41 @@ def test_loopback_adapter_cannot_dispatch_beyond_the_worker_partition(workers):
     assert reports == [[]] * workers and stops == ["request_limit"] * workers
     assert counters == [{"requests": partition, "tools": partition, "tokens": 10 * partition, "unknown": 0}] * workers
     assert all(trace.count({"op": "read", "error": "out_of_scope"}) == partition for trace in traces)
+
+
+def test_loopback_adapter_waits_for_usage_past_the_connect_timeout():
+    class SlowResponse(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers["Content-Length"]))
+            if self.path == "/tokenize":
+                payload = {"tokens": [11]}
+            else:
+                Event().wait(5.2)
+                payload = {"content": '{"op":"stop"}', "tokens_evaluated": 1,
+                           "tokens_predicted": 4, "truncated": False}
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(json.dumps(payload).encode())
+
+        def log_message(self, *args):
+            pass
+
+    with ThreadingHTTPServer(("127.0.0.1", 0), SlowResponse) as server:
+        serving = Thread(target=server.serve_forever, kwargs={"poll_interval": 0.02})
+        serving.start()
+        try:
+            _, send = gate["prepare_llama"](server.server_port, "Synthetic prompt.")
+            assert send(monotonic() + 12, Event()) == ({"op": "stop"}, Usage(1, 4))
+        finally:
+            server.shutdown()
+            serving.join()
+
+
+def test_cost_record_keeps_known_input_output_and_subsets_separate():
+    budget = Budget(2)
+    budget.model(0, 200, reply)
+    budget.model(0, 200, lambda *_: ("second", Usage(20, 5, cached=2, reasoning=1)))
+    with pytest.raises(Refused, match="unknown_usage"):
+        budget.model(0, 200, lambda *_: (None, None))
+    assert budget.usage() == [Usage(120, 25, cached=82, reasoning=11), Usage(0, 0)]
+    assert budget.snapshot()[0] == {"requests": 3, "tools": 0, "tokens": 145, "unknown": 1}
