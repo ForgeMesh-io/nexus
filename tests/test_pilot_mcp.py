@@ -10,10 +10,27 @@ import pytest
 from forgemesh.pilot import Pilot
 
 mcp = pytest.importorskip("mcp")
+BWRAP = pytest.mark.skipif(os.environ.get("NEXUS_TEST_BWRAP") != "1", reason="opt-in Linux OS boundary test")
 
 
-@pytest.mark.parametrize("isolated", [False, pytest.param(True, marks=pytest.mark.skipif(
-    os.environ.get("NEXUS_TEST_BWRAP") != "1", reason="opt-in Linux OS boundary test"))])
+def bridge_command(ledger_path, isolated, *bridge_args):
+    """Bridge command; isolated runs it as UID 65534 in Bubblewrap and asserts the ledger is invisible."""
+    if not isolated:
+        return [sys.executable, "-m", "forgemesh.pilot_mcp", *bridge_args]
+    venv = Path(sys.prefix)
+    base = Path(sys.base_prefix)
+    assert venv != base and "/site-packages/" in str(mcp.__file__)
+    return ["bwrap", "--unshare-user", "--uid", "65534", "--gid", "65534", "--unshare-pid", "--die-with-parent",
+            "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp", "--chdir", "/tmp"] + [
+                arg for path in ("/usr", "/lib", "/lib64", str(venv), str(base)) if Path(path).exists()
+                for arg in ("--ro-bind", path, path)
+            ] + [sys.executable, "-c", (
+                "import os,sys; from forgemesh.pilot_mcp import main; "
+                "assert os.getuid() == 65534 and not os.path.lexists(sys.argv.pop(1)); main()"
+            ), str(ledger_path), *bridge_args]
+
+
+@pytest.mark.parametrize("isolated", [False, pytest.param(True, marks=BWRAP)])
 def test_stdio_session_can_only_use_participant_api(tmp_path, isolated):
     ledger = Pilot(tmp_path / "pilot.db")
     ledger.initialize("example/project")
@@ -23,22 +40,7 @@ def test_stdio_session_can_only_use_participant_api(tmp_path, isolated):
     ledger.add_task("guide", 7, "b" * 40, "Check the guide")
 
     def connection(token, port):
-        command = sys.executable
-        args = ["-m", "forgemesh.pilot_mcp", str(port)]
-        if isolated:
-            venv = Path(sys.prefix)
-            base = Path(sys.base_prefix)
-            assert venv != base and "/site-packages/" in str(mcp.__file__)
-            command = "bwrap"
-            args = ["--unshare-user", "--uid", "65534", "--gid", "65534", "--unshare-pid", "--die-with-parent",
-                    "--dev", "/dev", "--proc", "/proc",
-                    "--tmpfs", "/tmp", "--chdir", "/tmp"] + [
-                        arg for path in ("/usr", "/lib", "/lib64", str(venv), str(base)) if Path(path).exists()
-                        for arg in ("--ro-bind", path, path)
-                    ] + [sys.executable, "-c", (
-                        "import os,sys; from forgemesh.pilot_mcp import main; "
-                        "assert os.getuid() == 65534 and not os.path.lexists(sys.argv.pop(1)); main()"
-                    ), str(ledger.path), str(port)]
+        command, *args = bridge_command(ledger.path, isolated, str(port))
         return mcp.Client(mcp.StdioServerParameters(
             command=command, args=args,
             env={"NEXUS_PARTICIPANT_TOKEN": token},
@@ -79,7 +81,8 @@ def test_stdio_session_can_only_use_participant_api(tmp_path, isolated):
             process.terminate()
 
 
-def test_streamable_http_bridge_is_loopback_and_uses_each_callers_token(tmp_path):
+@pytest.mark.parametrize("isolated", [False, pytest.param(True, marks=BWRAP)])
+def test_streamable_http_bridge_is_loopback_and_uses_each_callers_token(tmp_path, isolated):
     import socket
     import time
     from urllib.error import HTTPError
@@ -130,7 +133,7 @@ def test_streamable_http_bridge_is_loopback_and_uses_each_callers_token(tmp_path
         try:
             assert select([api.stdout], [], [], 5)[0], "participant API did not start"
             api_port = api.stdout.readline().strip().rsplit(":", 1)[1]
-            with subprocess.Popen([sys.executable, "-m", "forgemesh.pilot_mcp", api_port, "--http", str(port)],
+            with subprocess.Popen(bridge_command(ledger.path, isolated, api_port, "--http", str(port)),
                                   env={"PATH": os.environ["PATH"]}, stderr=subprocess.PIPE) as bridge:
                 try:
                     for _ in range(100):
