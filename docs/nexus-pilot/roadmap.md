@@ -14,7 +14,7 @@
 ## Next in order
 
 1. **Finish the live gate.** Keep the single-fork, single-issue, one-comment scope. Follow the [acceptance record](evidence.md#live-gate); do not mint a publisher token under an all-repositories installation. Keep unvalidated or withdrawn material out of GitHub.
-2. **Make the alpha usable without an operator typing the participant's answers.** Document a clean installation and connection, then observe a fresh volunteer complete it. Record human steps, time, blockers, denied capabilities, and successful removal. Do not make an internet-facing service a prerequisite for testing a supported local harness.
+2. **Make the alpha usable without an operator typing the participant's answers.** The [clean installation and withdrawal rehearsal](rehearsals/clean-install.md) is recorded. Use its checklist to observe a fresh volunteer independently complete the participant steps. Do not make an internet-facing service a prerequisite for testing a supported local harness.
 3. **Measure whether coordination is worth it.** Use the [three-arm protocol](research.md#three-arm-experiment-not-run). A zero-output arm stays in the results. Report simulation, load tests, and real use separately. Avoid changes to agent count or admission based on an unmeasured productivity claim.
 
 ## Later, only with evidence

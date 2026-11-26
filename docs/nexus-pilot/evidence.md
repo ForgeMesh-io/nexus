@@ -18,6 +18,8 @@
 
 ## Reproduce the local checks
 
+**Clean installation and withdrawal (local observed):** [rehearsal and volunteer checklist](rehearsals/clean-install.md). The tested wheel installed in a new environment with a clean home and empty dependency cache using the public index. With only loopback available afterwards, OpenCode `/mcps` showed the connector; a separate SDK call discovered the fixture and was refused after revocation. Removing the project entry made the OpenCode list empty. Uninstall removed all three Nexus entry points and left the ledger intact (`PRAGMA integrity_check`: `ok`). No live model, human usability or GitHub publication was tested in this rehearsal.
+
 Use Linux, Python 3.12+, the optional MCP extra, and an environment with pytest. To reproduce all acceptance cases, also have `ip`, `unshare`, `bwrap`, `sqlite3`, `curl`, OpenCode and Codex. The `uv --offline` steps require the build environment and wheels already in the local cache. Use a disposable Linux VM instead if unprivileged user namespaces are disabled. Run with synthetic inputs; no GitHub or model credentials are used.
 
 ```sh
