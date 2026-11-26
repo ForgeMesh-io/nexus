@@ -8,14 +8,14 @@
 | Project opt-in and useful work | 15 | 12 | Real fork consent exists; proposal and preflight checks are bounded. A real agent submitted a report; a patch passed the mechanical check and was rejected on substance. Get maintainer feedback on usefulness and document what signals can be missed. |
 | Live GitHub delivery | 20 | 9 | HTTP-double coverage and real read-only preflight. Narrow the App installation to the fork, publish one approved report, verify the bot/comment independently, reconcile without a second POST, and record refusal plus stop/revoke. |
 | Installation and onboarding | 25 | 10 | Wheel, CLI, MCP bridge, Antigravity model run, and host-policy tests exist. Package a reproducible candidate and have a non-technical volunteer install, connect from a compatible harness, submit, and detach without operator prompts. Test the documented safe fallback separately. |
-| Comparative value and release decision | 10 | 1 | Measurement protocol exists. Run the solo/independent/Nexus comparison with common limits and consented review, report quality, actual resources, and active human minutes. No declared winner or release yet. |
+| Comparative value and release decision | 10 | 1 | Frozen tasks, limits, and a blind rubric exist; offline setup verified. Confirm metering and participant consent, then run the comparison and record quality, actual resources, and active human minutes. No declared winner or release yet. |
 | **Total** | **100** | **60** | |
 
 ## Next in order
 
 1. **Finish the live gate.** Keep the single-fork, single-issue, one-comment scope. Follow the [acceptance record](evidence.md#live-gate); do not mint a publisher token under an all-repositories installation. Keep unvalidated or withdrawn material out of GitHub.
 2. **Make the alpha usable without an operator typing the participant's answers.** The [clean installation and withdrawal rehearsal](rehearsals/clean-install.md) is recorded. Use its checklist to observe a fresh volunteer independently complete the participant steps. Do not make an internet-facing service a prerequisite for testing a supported local harness.
-3. **Measure whether coordination is worth it.** Use the [three-arm protocol](research.md#three-arm-experiment-not-run). A zero-output arm stays in the results. Report simulation, load tests, and real use separately. Avoid changes to agent count or admission based on an unmeasured productivity claim.
+3. **Measure whether coordination is worth it.** Use the [frozen three-arm protocol](rehearsals/three-arm.md). A zero-output arm stays in the results. Report simulation, load tests, and real use separately. Avoid changes to agent count or admission based on an unmeasured productivity claim.
 
 ## Later, only with evidence
 

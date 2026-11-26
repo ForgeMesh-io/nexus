@@ -1,0 +1,38 @@
+{
+  "source_repository": "FRGMesh/anyps5",
+  "base": "8cfc7e611e0b0a2c22c6294a76c0fe7bbd8d506c",
+  "sha256": {
+    "CONTRIBUTING.md": "02091c6f7a327e4c4bfd18a7302dc7f2690c765305d3d62657bddc91aa1c64b7",
+    "docs/dev/BUILD.md": "580de98ce5b57af81f4d451cb1e2a03738b46c736acae43191f39e7fe06be70b"
+  },
+  "pools": {
+    "relinker": [
+      {
+        "task": "configure-relinker",
+        "issue": 101,
+        "title": "Can a first-time relinker contributor follow the build commands without confusing the relinker-only and full configurations? Identify the smallest useful clarification, or explain why none is needed.",
+        "paths": ["CONTRIBUTING.md", "docs/dev/BUILD.md"]
+      },
+      {
+        "task": "register-python-tests",
+        "issue": 102,
+        "title": "Why might a relinker-only CTest run pass while missing Python-backed tests? Describe the documented check and the smallest clarification for a first-time contributor.",
+        "paths": ["CONTRIBUTING.md", "docs/dev/BUILD.md"]
+      }
+    ],
+    "build-docs": [
+      {
+        "task": "select-tests",
+        "issue": 201,
+        "title": "Explain when the documented selective test recipe must fall back to a full run, and one check a contributor can make before treating the selection as sufficient.",
+        "paths": ["docs/dev/BUILD.md"]
+      },
+      {
+        "task": "web-release",
+        "issue": 202,
+        "title": "Explain why a change on main may not appear on the deployed web converter. Identify the matching release artifacts and one documented way to check their provenance.",
+        "paths": ["docs/dev/BUILD.md"]
+      }
+    ]
+  }
+}
