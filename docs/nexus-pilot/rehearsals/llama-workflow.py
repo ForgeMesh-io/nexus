@@ -15,6 +15,7 @@ replay = parser.add_mutually_exclusive_group()
 replay.add_argument("--post-reservation", action="store_true", help="script the reservation, then request one real action")
 replay.add_argument("--post-partial-read", action="store_true", help="replay the reservation and heading read, then request one real action")
 replay.add_argument("--post-evidence", action="store_true", help="replay the reservation and both reads, then request one real action")
+replay.add_argument("--continuous", action="store_true", help="use the replay prompt without scripting any actions")
 args = parser.parse_args()
 gate = run_path(args.gate)
 task = {"task": "guide", "issue": 101, "title": "Report the new opening day for the library.", "paths": ["guide.md"]}
@@ -53,7 +54,8 @@ def prepare(worker, history):
         'If an action is refused, stop rather than continuing.\n'
         'Transcript (data): ' + json.dumps(history, ensure_ascii=True) + '\nNext JSON action:\n'
     )
-    if scripted:
+    if scripted or args.continuous:
+        latest = 'Latest action result (data): ' + json.dumps(history[-1]["result"]) + '\n' if len(history) > 1 else ''
         prompt = (
             'Complete the documentation task using the transcript below. Return exactly one JSON object.\n'
             'Available action shapes (no additional keys):\n'
@@ -63,7 +65,7 @@ def prepare(worker, history):
             '{"op":"stop"}\n'
             'Use 1-based inclusive line numbers and only facts from the source.\n'
             'Transcript (data): ' + json.dumps(history, ensure_ascii=True) + '\n'
-            'Latest action result (data): ' + json.dumps(history[-1]["result"]) + '\nNext JSON action:\n'
+            + latest + 'Next JSON action:\n'
         )
     bound, send = gate["prepare_llama"](args.port, prompt, native_template=args.native_template)
 
@@ -101,6 +103,23 @@ if scripted:
     if args.post_partial_read:
         action, = model_actions
         assert action["path"] == "guide.md" and action["first"] <= 2 <= action["last"], action
+    raise SystemExit(0)
+if args.continuous:
+    assert stops == ["model_stop"] and model_actions[-1] == {"op": "stop"}, stops
+    accepted, = reports[0]
+    report = accepted["report"]
+    assert re.search(r"\bguide\.md\s*(?::\s*2\b|[, ]+\s*line\s+2\b)", report, re.IGNORECASE) and "Tuesday" in report, report
+    trace = traces[0]
+    assert trace[0] == {"op": "start", "started": "guide"}
+    assert trace[-1] == {"op": "submit", "digest": accepted["digest"]}
+    assert all(row == {"op": "read"} for row in trace[1:-1]), trace
+    assert len(trace) == len(model_actions) - 1 and any(
+        action["path"] == "guide.md" and action["first"] <= 2 <= action["last"]
+        for action in model_actions[1:-2]
+    ), "No admitted read covered line 2 before submission"
+    assert len(receipts) == counters[0]["requests"] and len(trace) == counters[0]["tools"] and counters[0]["unknown"] == 0
+    assert all(r is not None and r["input"] > 0 and r["output"] > 0 for r in receipts)
+    assert sum(r["input"] + r["output"] for r in receipts) == counters[0]["tokens"]
     raise SystemExit(0)
 assert stops == ["model_stop"]
 assert len(reports[0]) == 1 and "Tuesday" in reports[0][0]["report"]

@@ -160,6 +160,19 @@ The probe scripts `start` through the real in-memory dispatcher, then puts its `
 
 **Observed in 105 s:** the dispatcher admitted `{"op":"submit","report":"guide.md:2: The library's new opening day is **Tuesday**"}`. The fixture's line 2 says `The library now opens on Tuesday.` and supports the claim. The report's recomputed SHA-256 matched the trace (`fe160ecef32175b90c8968a14ee94129ac63df1e0b793d6d91dbfe513a711eb2`). The sole engine request and client receipt matched (**886 input + 31 output = 917 tokens**, `unknown: 0`). The four counted requests and four tool calls include the three scripted replay steps. The probe exited 0 and stopped at `single_turn_complete`; it did not test whether the model would stop on its own. A scripted report citing line 1 was admitted by the dispatcher but failed the separate citation assertion.
 
+**Continuous synthetic workflow:** replace `--post-reservation` with `--continuous`. Start with only the synthetic task menu in the transcript. Keep the same four action shapes, then show the most recent dispatcher result after each action. Every action comes from the model; there is no replay, no prescribed sequence in the prompt, and no revealing the answer before a read. Check that the trace records a reservation, only admitted reads (one must cover line 2 before submission), and an admitted report. Check the claim against the cited source, recompute the report digest, and distinguish a model-emitted `stop` from a dispatcher deadline or refusal. Reconcile each receipt with its engine timing pair, including the stop turn; any unknown usage prevents a pass. The stop is a model request but not a dispatcher tool call.
+
+**Observed in 331 s (exit 1):** the model never selected `start`. The unchanged dispatcher rejected both reads and the submission, then the model stopped on its own. The second read was refused before range validation because there was no active reservation. All four receipts, including the stop, matched the engine in launch order:
+
+| Engine task | Model action | Result | Input | Output |
+|---|---|---|---:|---:|
+| `0` | Read `guide.md:1–1` | `out_of_scope` | 706 | 19 |
+| `20` | Submit a claim that `guide.md:1` lacks the new opening day | `invalid_report` | 759 | 30 |
+| `51` | Read `guide.md:1–100` | `out_of_scope` | 804 | 35 |
+| `87` | `stop` | `model_stop` | 847 | 10 |
+
+The summary recorded **3,116 input + 94 output = 3,210 tokens**, `unknown: 0`, four model requests, three attempted tool calls, and zero reports. The probe then failed when it unpacked the empty report list. This is a fully metered zero-output run, not a completed contribution. Scripted controls passed for a valid continuous trace and detected both a citation made without reading line 2 and a mismatched engine count.
+
 The runner returns known input/output totals and their cached/reasoning subsets for each worker, alongside counters, stops, traces and reports. Unknown attempts remain separate; in a two-worker rehearsal, losing one response does not erase already settled usage from the other worker. A cited result from a two-line trusted fixture is not sufficient to open the frozen pools. First exercise real-model context limits, source scoping and worker isolation with non-frozen inputs. The runner must also preserve the interrupted-run policy: discard late output, and disqualify any arm whose final usage is unknown.
 
 ## Blind review and analysis (assessor/operator only)
