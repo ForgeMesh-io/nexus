@@ -383,7 +383,8 @@ def test_adapter_context_refusal_is_not_counted_as_a_tool_call():
     assert traces == [[{"op": "model", "error": "prompt_too_large"}]]
 
 
-@pytest.mark.parametrize("mode", ["ok", "missing", "mismatch", "truncated", "expired", "oversize", "slow", "cancelled"])
+@pytest.mark.parametrize("mode", ["ok", "native", "bad_template", "native_oversize", "missing", "mismatch", "truncated",
+                                  "expired", "oversize", "slow", "cancelled"])
 def test_loopback_adapter_reserves_a_slot_and_requires_complete_usage(mode):
     wire = []
     entered, release, stop = Event(), Event(), Event()
@@ -392,8 +393,10 @@ def test_loopback_adapter_reserves_a_slot_and_requires_complete_usage(mode):
         def do_POST(self):
             data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             wire.append((self.path, data))
-            if self.path == "/tokenize":
-                payload = {"tokens": [11, 22, 33] if mode != "oversize" else [11] * 3328}
+            if self.path == "/apply-template":
+                payload = {"prompt": [] if mode == "bad_template" else "[INST]Synthetic prompt.[/INST]"}
+            elif self.path == "/tokenize":
+                payload = {"tokens": [11] * 3328 if mode in ("oversize", "native_oversize") else [11, 22, 33]}
             else:
                 payload = {"content": '{"op":"stop"}', "tokens_evaluated": 3,
                            "tokens_predicted": 4, "truncated": False}
@@ -419,9 +422,28 @@ def test_loopback_adapter_reserves_a_slot_and_requires_complete_usage(mode):
         serving = Thread(target=server.serve_forever, kwargs={"poll_interval": 0.02})
         serving.start()
         try:
-            bound, send = gate["prepare_llama"](server.server_port, "Synthetic prompt.")
+            native = mode in ("native", "bad_template", "native_oversize")
+            options = {"native_template": True} if native else {}
+            bound, send = gate["prepare_llama"](server.server_port, "Synthetic prompt.", **options)
             assert bound == 4096 and wire == []
             deadline = monotonic() + (-1 if mode == "expired" else 3)
+            if native:
+                expected = [("/apply-template", {"messages": [{"role": "user", "content": "Synthetic prompt."}]})]
+                outcome = send(deadline, stop)
+                if mode == "bad_template":
+                    assert outcome == (NoAction("invalid_template"), Usage(0, 0))
+                else:
+                    expected.append(("/tokenize", {"content": "[INST]Synthetic prompt.[/INST]", "parse_special": True,
+                                                    "add_special": True}))
+                    if mode == "native_oversize":
+                        assert outcome == (NoAction("prompt_too_large"), Usage(0, 0))
+                    else:
+                        assert outcome == ({"op": "stop"}, Usage(3, 4))
+                        expected.append(("/completion", {"prompt": [11, 22, 33], "n_predict": 768, "n_cmpl": 1,
+                                                         "cache_prompt": False, "stream": False, "temperature": 0,
+                                                         "json_schema": {"type": "object"}}))
+                assert wire == expected
+                return
             if mode == "expired":
                 with pytest.raises(TimeoutError):
                     send(deadline, Event())

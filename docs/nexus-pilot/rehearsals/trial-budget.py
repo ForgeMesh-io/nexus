@@ -133,8 +133,8 @@ class Budget:
         return result
 
 
-def prepare_llama(port, prompt):
-    """Candidate adapter for a disposable 4,096-token slot with context shifting disabled."""
+def prepare_llama(port, prompt, *, native_template=False):
+    """Use a disposable 4,096-token slot; native templating is for trusted synthetic text only."""
     slot, output = 4096, 768
 
     def send(deadline, stop):
@@ -181,7 +181,13 @@ def prepare_llama(port, prompt):
                 connection.close()
                 watcher.join()
 
-        tokens = post("/tokenize", {"content": prompt, "parse_special": False, "add_special": True}).get("tokens")
+        content = prompt
+        if native_template:
+            content = post("/apply-template", {"messages": [{"role": "user", "content": prompt}]}).get("prompt")
+            if not isinstance(content, str) or not content:
+                return NoAction("invalid_template"), Usage(0, 0)
+        tokens = post("/tokenize", {"content": content, "parse_special": native_template,
+                                    "add_special": True}).get("tokens")
         if not isinstance(tokens, list) or not tokens or any(type(t) is not int or t < 0 for t in tokens):
             return None, None
         if len(tokens) + output >= slot:

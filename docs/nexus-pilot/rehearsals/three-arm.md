@@ -112,7 +112,7 @@ timeout 100 "$PYTHON" -I -u docs/nexus-pilot/rehearsals/llama-workflow.py \
   docs/nexus-pilot/rehearsals/trial-budget.py 9182
 ```
 
-The [probe](llama-workflow.py) is the unchanged second-attempt fixture, including the prompt and assertions. It uses the solo runner's in-memory reservation, not a Nexus ledger. Ministral started `guide` and read lines 1–2 of `guide.md`. It then sent `{"op":"submit","filename":"guide.md","line":1,"finding":"The library opens on Tuesday."}` instead of the required `report` field. The dispatcher does not accept those fields, and the opening day is on line 2. No valid submission was observed. The three completed responses accounted for **679 input + 54 output** in the engine logs; the fourth started but the external 100 s timeout killed the probe (exit 124), without a final receipt or arm summary. This is progress through the read step, not a successful contribution or qualified comparison runner.
+The [probe](llama-workflow.py) uses the same task, source and user prompt as the second attempt. It uses the solo runner's in-memory reservation, not a Nexus ledger. Ministral started `guide` and read lines 1–2 of `guide.md`. It then sent `{"op":"submit","filename":"guide.md","line":1,"finding":"The library opens on Tuesday."}` instead of the required `report` field. The dispatcher does not accept those fields, and the opening day is on line 2. No valid submission was observed. The three completed responses accounted for **679 input + 54 output** in the engine logs; the fourth started but the external 100 s timeout killed the probe (exit 124), without a final receipt or arm summary. This is progress through the read step, not a successful contribution or qualified comparison runner.
 
 **Interruption with Ministral:** run `"$PYTHON" -I docs/nexus-pilot/rehearsals/llama-smoke.py 9182 cancel` and `late` against separate fresh isolated engines. Both probes attempted one completion and admitted no tool calls:
 
@@ -121,7 +121,23 @@ The [probe](llama-workflow.py) is the unchanged second-attempt fixture, includin
 | `cancel`: interrupt while a slot is processing | Client returned in **17 ms**; no action or final receipt; **`unknown: 1`**, not zero consumption. Further tool admission was refused. | Slot was observed idle within 8 s. The log records **22 input + 4 output** after disconnection; it does not establish whether the backend cancelled or finished normally. |
 | `late`: deliberately stop after receiving a real completion but before handing it to the gate | `{"op":"stop"}` was discarded with `cancelled`; **22 input + 6 output** retained, **`unknown: 0`**. Further tool admission was refused. | Final counts matched the engine log. This simulates late delivery at the dispatcher boundary; it is not a server-side cancellation test. |
 
-The frozen tasks stayed unused. The next qualification probe should fix prompt framing as a separate, synthetic-only experiment, not weaken the action validator or score these observations as a contribution.
+**Native Ministral template, synthetic only:** use the same engine and weights as the raw probe, and enable the GGUF chat template without changing the user prompt or action validator:
+
+```sh
+timeout 915 "$PYTHON" -I -u docs/nexus-pilot/rehearsals/llama-workflow.py \
+  docs/nexus-pilot/rehearsals/trial-budget.py 9182 --native-template
+```
+
+`/apply-template` adds the model's default system message and role boundaries. After reserving the same full slot, the dispatcher tokenizes the rendered text and passes the checked integer token IDs to `/completion`. On this engine and GGUF, a separate tokenization check showed `add_special: true` inserts exactly one leading BOS (ID 1). The HTTP fixture also verifies that malformed templates and oversized rendered prompts never reach completion. Special-token parsing is enabled only for this trusted fixture; do not pass untrusted project content into this mode. The 915 s outer watchdog leaves the existing 900 s dispatcher deadline in charge, unlike the raw probe's external 100 s timeout. The runs are therefore not a controlled speed comparison. The native probe requires a `guide.md`, line 2 citation and a complete receipt for each of the four expected actions.
+
+| Action | Dispatcher result | Input | Output |
+| --- | --- | ---: | ---: |
+| `start` | Reserved `guide` in memory | 722 | 10 |
+| `read` | Read `guide.md`, lines 1–2 | 747 | 26 |
+| `submit` | `unknown_action`: supplied `filename`, `line_range` and `finding` instead of `report` | 812 | 55 |
+| `stop` | `model_stop` | 879 | 7 |
+
+All four receipts matched the engine log individually (**3,160 input + 98 output = 3,258 tokens**, `unknown: 0`). The model returned Tuesday and cited a range that included the source, but claimed it was previously unspecified without historical evidence. No report was admitted. The probe exited 1 on its contribution assertion after printing the complete summary. The native template alone did not resolve the submission failure; do not score the probe or open the frozen tasks. A separate synthetic test can give the model the full existing action contract (including the `report` field) without encoding the expected answer or weakening validation.
 
 The runner returns known input/output totals and their cached/reasoning subsets for each worker, alongside counters, stops, traces and reports. Unknown attempts remain separate; in a two-worker rehearsal, losing one response does not erase already settled usage from the other worker.
 

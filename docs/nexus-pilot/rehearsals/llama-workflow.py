@@ -1,12 +1,20 @@
+"""Run the same synthetic contribution with raw or native prompt framing."""
+
+import argparse
 import json
 from dataclasses import asdict
+import re
 from runpy import run_path
-import sys
 
-gate = run_path(sys.argv[1])
-port = int(sys.argv[2])
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("gate")
+parser.add_argument("port", type=int)
+parser.add_argument("--native-template", action="store_true")
+args = parser.parse_args()
+gate = run_path(args.gate)
 task = {"task": "guide", "issue": 101, "title": "Report the new opening day for the library.", "paths": ["guide.md"]}
 source = {"guide.md": "Library guide\nThe library now opens on Tuesday.\n"}
+receipts = []
 
 
 def prepare(worker, history):
@@ -19,11 +27,13 @@ def prepare(worker, history):
         'If an action is refused, stop rather than continuing.\n'
         'Transcript (data): ' + json.dumps(history, ensure_ascii=True) + '\nNext JSON action:\n'
     )
-    bound, send = gate["prepare_llama"](port, prompt)
+    bound, send = gate["prepare_llama"](args.port, prompt, native_template=args.native_template)
 
     def observed(*args):
         action, usage = send(*args)
-        print("Synthetic action:", repr(action), flush=True)
+        receipt = asdict(usage) if usage is not None else None
+        receipts.append(receipt)
+        print("Synthetic action:", repr(action), "receipt:", json.dumps(receipt), flush=True)
         return action, usage
 
     return bound, observed
@@ -35,3 +45,10 @@ assert stops == ["model_stop"]
 assert len(reports[0]) == 1 and "Tuesday" in reports[0][0]["report"]
 assert [row["op"] for row in traces[0]] == ["start", "read", "submit"]
 assert counters[0]["unknown"] == 0
+if args.native_template:
+    report = reports[0][0]["report"]
+    assert "guide.md" in report and re.search(r"\bline\s+2\b|guide\.md:2\b", report, re.IGNORECASE), report
+    assert all("error" not in row for row in traces[0]), traces[0]
+    assert len(receipts) == counters[0]["requests"] == 4
+    assert all(receipt is not None and receipt["input"] > 0 and receipt["output"] > 0 for receipt in receipts)
+    assert sum(r["input"] + r["output"] for r in receipts) == counters[0]["tokens"]
