@@ -151,6 +151,8 @@ class GitHubPublisher(GitHubReader):
         if (not isinstance(current, dict) or current.get("number") != issue
                 or current.get("state") != "open" or current.get("locked") or "pull_request" in current):
             raise PilotError("ineligible_issue")
+        if current.get("assignees") or current.get("assignee"):
+            raise PilotError("assigned")
         if target["kind"] == "patch" and not target["checked"]:
             raise PilotError("not_checked")
         check_consent(self.consent(path, head), issue, target["paths"], target["checked"] or ())

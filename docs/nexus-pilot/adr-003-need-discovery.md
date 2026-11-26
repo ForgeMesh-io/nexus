@@ -37,7 +37,7 @@ Nothing is written. The maintainer chooses which proposals to pipe into `add-tas
 
 - **Recent human comments** are not treated as a claim. A comment like "I'll take this" is free text, and parsing it is exactly the kind of non-binding signal the notebook warns about. The maintainer sees `comments` and `updated_at` and decides.
 - **Ranking**: candidates keep the maintainer's own order in the consent file. No score is invented.
-- **Freshness after selection**: a human may self-assign after the proposal. The publisher re-checks consent but not assignees. Adding that check is cheap. Defer it until a live run shows that the race happens.
+- **Freshness after selection**: a human may self-assign after the proposal. *Amended 2026-11-26:* the publisher now refuses with `assigned`, before any grant is spent, if the issue has an assignee when it re-reads the issue. A linked pull request opened after selection is still not re-checked at publication.
 - **Linked branches**: the `development` panel is GraphQL-only. Not read.
 
 ## Consequences

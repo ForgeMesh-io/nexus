@@ -139,6 +139,9 @@ def test_github_never_retries_after_missing_or_wrong_author_receipt(approved):
     ("a" * 40, None, "stale_base"),
     (BASE, {"number": 7, "state": "closed"}, "ineligible_issue"),
     (BASE, {"number": 7, "state": "open", "pull_request": {}}, "ineligible_issue"),
+    # A human took the issue after the task was selected (ADR 003).
+    (BASE, {"number": 7, "state": "open", "assignees": [{"login": "human"}]}, "assigned"),
+    (BASE, {"number": 7, "state": "open", "assignee": {"login": "human"}}, "assigned"),
 ])
 def test_github_stale_or_ineligible_target_never_dispatches(approved, base, issue, error):
     _, ledger, token, _, _ = approved
