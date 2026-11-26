@@ -105,6 +105,24 @@ HTTP counts include failed attempts, retries and auxiliary title requests. The t
 
 **Second attempt, same fixture and engine:** the prompt replaced placeholder IDs and paths with concrete examples and asked the model to stop on a refusal. The model skipped `start`, requested lines 3–4 of a two-line file, then repeatedly generated a malformed submission naming June 1 instead of Tuesday without reading the source. No report was accepted. Four completions finished (engine logs: **949 input + 112 output**); the process hit the probe's external 100 s timeout during the fifth, with no final receipt or arm summary. This is an incomplete, unscorable probe, not a fully metered zero-output run. Do not narrow allowed actions based on the expected correct answer to make the probe pass.
 
+**Different local model, unchanged workflow probe:** swapped only the weights to `Ministral-3-3B-Instruct-2512-Q4_K_M.gguf` (SHA-256 `ee46f8f2cc4acf15e89699563e23b4a3919dce2e9ce7c44b53778d6590318e96`). Use the same isolated engine flags as above and run:
+
+```sh
+timeout 100 "$PYTHON" -I -u docs/nexus-pilot/rehearsals/llama-workflow.py \
+  docs/nexus-pilot/rehearsals/trial-budget.py 9182
+```
+
+The [probe](llama-workflow.py) is the unchanged second-attempt fixture, including the prompt and assertions. It uses the solo runner's in-memory reservation, not a Nexus ledger. Ministral started `guide` and read lines 1–2 of `guide.md`. It then sent `{"op":"submit","filename":"guide.md","line":1,"finding":"The library opens on Tuesday."}` instead of the required `report` field. The dispatcher does not accept those fields, and the opening day is on line 2. No valid submission was observed. The three completed responses accounted for **679 input + 54 output** in the engine logs; the fourth started but the external 100 s timeout killed the probe (exit 124), without a final receipt or arm summary. This is progress through the read step, not a successful contribution or qualified comparison runner.
+
+**Interruption with Ministral:** run `"$PYTHON" -I docs/nexus-pilot/rehearsals/llama-smoke.py 9182 cancel` and `late` against separate fresh isolated engines. Both probes attempted one completion and admitted no tool calls:
+
+| Probe | Dispatcher observation | Engine observation |
+| --- | --- | --- |
+| `cancel`: interrupt while a slot is processing | Client returned in **17 ms**; no action or final receipt; **`unknown: 1`**, not zero consumption. Further tool admission was refused. | Slot was observed idle within 8 s. The log records **22 input + 4 output** after disconnection; it does not establish whether the backend cancelled or finished normally. |
+| `late`: deliberately stop after receiving a real completion but before handing it to the gate | `{"op":"stop"}` was discarded with `cancelled`; **22 input + 6 output** retained, **`unknown: 0`**. Further tool admission was refused. | Final counts matched the engine log. This simulates late delivery at the dispatcher boundary; it is not a server-side cancellation test. |
+
+The frozen tasks stayed unused. The next qualification probe should fix prompt framing as a separate, synthetic-only experiment, not weaken the action validator or score these observations as a contribution.
+
 The runner returns known input/output totals and their cached/reasoning subsets for each worker, alongside counters, stops, traces and reports. Unknown attempts remain separate; in a two-worker rehearsal, losing one response does not erase already settled usage from the other worker.
 
 ## Blind review and analysis (assessor/operator only)
