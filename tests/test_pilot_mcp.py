@@ -77,3 +77,72 @@ def test_stdio_session_can_only_use_participant_api(tmp_path, isolated):
             asyncio.run(asyncio.wait_for(exercise(int(url.rsplit(":", 1)[1])), timeout=15))
         finally:
             process.terminate()
+
+
+def test_streamable_http_bridge_is_loopback_and_uses_each_callers_token(tmp_path):
+    import socket
+    import time
+    from urllib.error import HTTPError
+    from urllib.request import Request, urlopen
+
+    from mcp.client.streamable_http import streamable_http_client
+    from mcp.shared._httpx_utils import create_mcp_http_client
+
+    ledger = Pilot(tmp_path / "pilot.db")
+    ledger.initialize("example/project")
+    writer = ledger.enroll("writer", "alice", "contributor")
+    maintainer = ledger.enroll("maintainer", "carol", "maintainer")
+    ledger.add_task("guide", 7, "b" * 40, "Check the guide")
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    url = f"http://127.0.0.1:{port}/mcp"
+
+    def client(token=None):
+        headers = {"Authorization": "Bearer " + token} if token else {}
+        return mcp.Client(streamable_http_client(url, http_client=create_mcp_http_client(headers=headers)))
+
+    async def exercise():
+        async with client(writer) as session:
+            assert {tool.name for tool in (await session.list_tools()).tools} == {
+                "discover", "claim", "submit", "review"}
+            assert (await session.call_tool("discover", {})).structured_content["tasks"][0]["id"] == "guide"
+            assert (await session.call_tool("claim", {"task": "guide"})).structured_content == {"lease": 1}
+        async with client() as session:
+            denied = await session.call_tool("discover", {})
+            assert denied.is_error and "unauthorized" in denied.content[0].text
+        ledger.revoke(maintainer, "writer")
+        async with client(writer) as session:
+            denied = await session.call_tool("discover", {})
+            assert denied.is_error and "unauthorized" in denied.content[0].text
+
+    def status(headers):
+        request = Request(url, b"{}", {"Content-Type": "application/json",
+                                       "Accept": "application/json, text/event-stream"} | headers)
+        try:
+            with urlopen(request, timeout=5) as response:
+                return response.status
+        except HTTPError as error:
+            return error.code
+
+    with subprocess.Popen([sys.executable, "-m", "forgemesh.pilot_http", str(ledger.path), "--port", "0"],
+                          stdout=subprocess.PIPE, text=True) as api:
+        try:
+            assert select([api.stdout], [], [], 5)[0], "participant API did not start"
+            api_port = api.stdout.readline().strip().rsplit(":", 1)[1]
+            with subprocess.Popen([sys.executable, "-m", "forgemesh.pilot_mcp", api_port, "--http", str(port)],
+                                  env={"PATH": os.environ["PATH"]}, stderr=subprocess.PIPE) as bridge:
+                try:
+                    for _ in range(100):
+                        with socket.socket() as attempt:
+                            if attempt.connect_ex(("127.0.0.1", port)) == 0:
+                                break
+                        time.sleep(0.05)
+                    assert status({"Host": "nexus.example"}) == 421
+                    assert status({"Origin": "https://evil.example"}) == 403
+                    asyncio.run(asyncio.wait_for(exercise(), timeout=15))
+                finally:
+                    bridge.terminate()
+            assert [event["event"] for event in ledger.audit()].count("claimed") == 1
+        finally:
+            api.terminate()

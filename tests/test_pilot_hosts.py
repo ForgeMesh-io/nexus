@@ -94,13 +94,31 @@ def test_opencode_connects_and_removes_configuration(host_setup):
     screen(rb"MCP servers +esc +Search +No items available")
 
 
-def test_opencode_turn_calls_nexus_and_enforces_local_deny(host_setup):
+@pytest.mark.parametrize("transport", ["stdio", "http"])
+def test_opencode_turn_calls_nexus_and_enforces_local_deny(host_setup, transport):
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     import pty
+    import socket
     import threading
     import time
 
     work, env, command, ledger, _ = host_setup
+    server = {"type": "local", "command": command, "codemode": False,
+              "environment": {"NEXUS_PARTICIPANT_TOKEN": "{env:NEXUS_PARTICIPANT_TOKEN}"}}
+    bridge = None
+    if transport == "http":
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
+        bridge = subprocess.Popen(command + ["--http", str(port)], env={"PATH": env["PATH"]},
+                                  stderr=subprocess.DEVNULL)
+        for _ in range(100):
+            with socket.socket() as attempt:
+                if attempt.connect_ex(("127.0.0.1", port)) == 0:
+                    break
+            time.sleep(0.05)
+        server = {"type": "remote", "url": f"http://127.0.0.1:{port}/mcp", "oauth": False, "codemode": False,
+                  "headers": {"Authorization": "Bearer {env:NEXUS_PARTICIPANT_TOKEN}"}}
     binary = shutil.which("opencode")
     assert binary, "OpenCode is required for host acceptance"
     script = iter([("nexus_discover", "{}"), ("nexus_claim", '{"task":"guide"}'),
@@ -142,8 +160,7 @@ def test_opencode_turn_calls_nexus_and_enforces_local_deny(host_setup):
                                   "package": "@opencode/ai/providers/openai-compatible",
                                   "settings": {"baseURL": f"http://127.0.0.1:{model.server_port}/v1"},
                                   "models": {"stub": {"name": "Stub"}}}},
-        "mcp": {"servers": {"nexus": {"type": "local", "command": command, "codemode": False,
-                "environment": {"NEXUS_PARTICIPANT_TOKEN": "{env:NEXUS_PARTICIPANT_TOKEN}"}}}},
+        "mcp": {"servers": {"nexus": server}},
         "permissions": [{"action": "nexus_submit", "resource": "*", "effect": "deny"}],
     }))
     # shortcut: `opencode run` 2.0.21 does not start MCP servers here; drive the TUI until that changes.
@@ -161,6 +178,8 @@ def test_opencode_turn_calls_nexus_and_enforces_local_deny(host_setup):
                 process.terminate()
     finally:
         model.shutdown()
+        if bridge:
+            bridge.terminate()
         os.close(master)
         os.close(terminal)
 

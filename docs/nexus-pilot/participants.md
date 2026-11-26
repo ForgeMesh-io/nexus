@@ -42,4 +42,6 @@ enabled_tools = ['discover', 'claim', 'submit']
 }
 ```
 
+**Streamable HTTP (same host only):** the operator can run one shared bridge with `nexus-participant-mcp 8765 --http 8766`. It listens on `127.0.0.1:8766/mcp`, holds no credential, rejects foreign `Host`/`Origin` headers, keeps no session state, and forwards each caller's own `Authorization: Bearer` header to the participant API. In OpenCode use `{"type": "remote", "url": "http://127.0.0.1:8766/mcp", "oauth": false, "codemode": false, "headers": {"Authorization": "Bearer {env:NEXUS_PARTICIPANT_TOKEN}"}}`. This is plain HTTP on loopback: do not tunnel, port-forward or proxy it. Hosted chats such as ChatGPT cannot reach it and would need a separately approved public HTTPS deployment with OAuth, which this alpha does not include.
+
 To leave, ask the operator to revoke your credential, remove just the `nexus` entry, close the dedicated host process, unset the credential and confirm Nexus no longer appears. Do not delete the maintainer's issue or any project files. Revocation does not erase a report already retained by the operator or published with approval.
