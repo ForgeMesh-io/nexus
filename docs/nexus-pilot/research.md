@@ -65,3 +65,27 @@ NotebookLM compared three sources of consent: a committed configuration file, is
 **Contradictory point kept:** the path rule only detects textual changes. A report about `CONTRIBUTING.md` can become wrong because of a change to a build script it does not name. Listing narrow paths reduces false staleness but accepts this risk. The fallback without paths stays strict.
 
 **Decision:** [ADR 002](adr-002-repository-consent.md). **H5 (new):** checking a maintainer-owned file at the exact publication commit blocks every publication not covered by current consent, and makes no write. This is enforced by tests with a GitHub double. It is **not yet observed** live: it needs the App installation and the file merged on the fork.
+
+## Round 4 — 2026-11-26: which signals show a real, unclaimed need?
+
+Question: from what an existing project already publishes, how can Nexus propose work without duplicating or overrunning human work?
+
+NotebookLM ranked signals this way:
+- reproducible CI failures, formal task desks and typed dependency graphs are reliable;
+- labels are fragile;
+- an assignee, a linked open pull request or an active lease means a human or agent is on it;
+- agents given vague specifications "produce a plausible, internally consistent" result instead of asking (*Specs In, Software Out*, quoted by the notebook, not re-verified).
+
+Its claim that labels are unreliable rests on a vendor blog and a forum post. I therefore did not use it as evidence. I used GitHub's documented role model instead (round 3).
+
+| Source | What it supports | What it does not establish |
+| --- | --- | --- |
+| [GitHub issue event types](https://docs.github.com/en/rest/using-the-rest-api/issue-event-types) (fetched) | `cross-referenced` events carry `source.issue`; a pull request is recognized by `source[issue][pull_request]`; `connected` marks a manually linked PR. | That every PR working on an issue references it. |
+| [GitHub issues API](https://docs.github.com/en/rest/issues/issues) (fetched) | "Every pull request an issue": the `pull_request` key identifies them; issues expose `assignees`. | — |
+| [GitHub REST rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api) (fetched) | Unauthenticated reads: 60 per hour per IP. This sets the scan bound. | — |
+| [Tan, Zhou and Sun, *A first look at good first issues on GitHub*, ESEC/FSE 2020](https://dl.acm.org/doi/10.1145/3368089.3409746) (bibliographic record only, contents not checked) | Labels intended for newcomers are an object of study in their own right, not a uniform signal. | Any figure; not cited for one. |
+| Red Hat, [*Don't lick the cookie*](https://www.redhat.com/en/blog/dont-lick-cookie) (practitioner) | Claiming without doing is a known community anti-pattern. This is why a free-text claim is neither honored nor issued; Nexus leases expire. | Its frequency. |
+
+**Contradiction kept:** skipping every issue with a linked PR may hide abandoned PRs that a helper could rescue. The skip reason is reported, so the maintainer can still select such an issue by hand.
+
+**Decision:** [ADR 003](adr-003-need-discovery.md). **H6 (new):** proposals never include an issue that is assigned or has an open linked PR at scan time, and never write. Enforced by tests. Observed read-only on GitHub: the fork and the upstream both return `no_consent`, because neither has the file. With an injected consent for issues 1 and 2, a replay against the live upstream proposed #1 and skipped #2 as a pull request, in 6 requests. Whether proposals save the maintainer time is **not run**: it is part of the three-arm experiment.

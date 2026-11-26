@@ -52,6 +52,13 @@ def publish_github(ledger, token, task, bot_user_id):
     return GitHubPublisher(os.environ.get("NEXUS_GITHUB_TOKEN"), bot_user_id).publish(ledger, token, task)
 
 
+def propose(ledger, token):
+    """Read-only; the optional token only raises GitHub's read rate limit."""
+    from .pilot_discovery import propose
+
+    return propose(ledger, token)
+
+
 def _object(pairs):
     result = dict(pairs)
     if len(result) != len(pairs):
@@ -73,6 +80,7 @@ def main():
         "stop": ledger.stop, "audit": ledger.audit, "upgrade": ledger.upgrade,
         "publish-local": lambda **payload: publish_local(ledger, **payload),
         "publish-github": lambda **payload: publish_github(ledger, **payload),
+        "propose": lambda: propose(ledger, os.environ.get("NEXUS_GITHUB_TOKEN") or None),
     }
     try:
         if args.action not in commands:

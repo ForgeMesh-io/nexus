@@ -36,6 +36,8 @@ nexus-pilot "$db" add-task <<'JSON'
 JSON
 ```
 
+To find candidates instead of typing them, list consented issues in the project's `.github/nexus.json` (see below) and run `nexus-pilot "$db" propose` with `{}`. It reads GitHub anonymously, or with `NEXUS_GITHUB_TOKEN` if set, and writes nothing. It returns `candidates`, each with a ready `add_task` object, and `skipped` with a reason (`assigned`, `open_pull_request`, `linked_pull_request`, `already_a_task`…). Review a candidate, then pipe its `add_task` object to `add-task`. See [ADR 003](adr-003-need-discovery.md).
+
 `paths` (optional, at most 16) lists the files, or directories ending in `/`, that the task relies on. Contributors see them in `discover`. If the default branch moves, the report stays current only when none of these paths changed. Without `paths`, any change except the consent file makes it stale. After installing a newer version on an existing ledger, run `nexus-pilot "$db" upgrade` once with `{}`.
 
 `nexus-pilot "$db" enroll` takes one JSON object on standard input and returns one secret as a JSON string. Enrol these four roles independently, using the appropriate `actor`, `owner` and `role`. For example:

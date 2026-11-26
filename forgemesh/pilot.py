@@ -429,6 +429,12 @@ class Pilot:
                 db.execute("UPDATE settings SET stopped=1")
                 self._event(db, "stopped", maintainer["id"])
 
+    def task_issues(self) -> tuple[str, set[int]]:
+        """Operator-only; the repository and the issues that already have a task."""
+        with self._db() as db:
+            settings = self._settings(db)
+            return settings["repository"], {row[0] for row in db.execute("SELECT issue FROM tasks")}
+
     def audit(self) -> list[dict]:
         """Operator-only, including after an emergency stop."""
         with self._db() as db:
