@@ -11,19 +11,28 @@ parser.add_argument("gate")
 parser.add_argument("port", type=int)
 parser.add_argument("--native-template", action="store_true")
 parser.add_argument("--explicit-actions", action="store_true")
-parser.add_argument("--post-reservation", action="store_true", help="script the reservation, then request one real action")
+replay = parser.add_mutually_exclusive_group()
+replay.add_argument("--post-reservation", action="store_true", help="script the reservation, then request one real action")
+replay.add_argument("--post-partial-read", action="store_true", help="replay the reservation and heading read, then request one real action")
 args = parser.parse_args()
 gate = run_path(args.gate)
 task = {"task": "guide", "issue": 101, "title": "Report the new opening day for the library.", "paths": ["guide.md"]}
 source = {"guide.md": "Library guide\nThe library now opens on Tuesday.\n"}
 receipts = []
+model_actions = []
+scripted = []
+if args.post_reservation or args.post_partial_read:
+    scripted.append({"op": "start", "task": task["task"]})
+if args.post_partial_read:
+    scripted.append({"op": "read", "path": "guide.md", "first": 1, "last": 1})
 
 
 def prepare(worker, history):
-    if args.post_reservation:
-        if len(history) == 1:
-            return 1, lambda *_: ({"op": "start", "task": task["task"]}, gate["Usage"](0, 0))
-        if len(history) != 2:
+    if scripted:
+        step = len(history) - 1
+        if step < len(scripted):
+            return 1, lambda *_: (scripted[step], gate["Usage"](0, 0))
+        if step != len(scripted):
             raise gate["Refused"]("single_turn_complete")
     submission = 'After a read, set op to submit and report to a short text with filename, line and finding.\n'
     if args.explicit_actions:
@@ -41,7 +50,7 @@ def prepare(worker, history):
         'If an action is refused, stop rather than continuing.\n'
         'Transcript (data): ' + json.dumps(history, ensure_ascii=True) + '\nNext JSON action:\n'
     )
-    if args.post_reservation:
+    if scripted:
         prompt = (
             'Complete the documentation task using the transcript below. Return exactly one JSON object.\n'
             'Available action shapes (no additional keys):\n'
@@ -57,6 +66,7 @@ def prepare(worker, history):
 
     def observed(*args):
         action, usage = send(*args)
+        model_actions.append(action)
         receipt = asdict(usage) if usage is not None else None
         receipts.append(receipt)
         print("Synthetic action:", repr(action), "receipt:", json.dumps(receipt), flush=True)
@@ -67,13 +77,18 @@ def prepare(worker, history):
 
 reports, counters, stops, traces, usage = gate["run_arm"]("a" * 40, [task], source, 1, prepare)
 print(json.dumps(dict(reports=reports, counters=counters, stops=stops, traces=traces, usage=list(map(asdict, usage))), indent=2))
-if args.post_reservation:
-    assert counters[0]["requests"] == 2 and len(receipts) == 1 and counters[0]["unknown"] == 0
+if scripted:
+    assert counters[0]["requests"] == counters[0]["tools"] == len(scripted) + 1, counters
+    assert len(receipts) == 1 and counters[0]["unknown"] == 0
     receipt, = receipts
     assert receipt["input"] > 0 and receipt["output"] > 0 and receipt == asdict(usage[0])
     assert stops == ["single_turn_complete"] and traces == [[
-        {"op": "start", "started": "guide"}, {"op": "read"}, {"op": "model", "error": "single_turn_complete"},
+        {"op": "start", "started": "guide"}, *[{"op": "read"}] * len(scripted),
+        {"op": "model", "error": "single_turn_complete"},
     ]] and reports == [[]], traces
+    if args.post_partial_read:
+        action, = model_actions
+        assert action["path"] == "guide.md" and action["first"] <= 2 <= action["last"], action
     raise SystemExit(0)
 assert stops == ["model_stop"]
 assert len(reports[0]) == 1 and "Tuesday" in reports[0][0]["report"]
