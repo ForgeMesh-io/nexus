@@ -72,6 +72,16 @@ The audit gained exactly `claimed` and `submitted`, both by actor `gemini`.
 
 An independent reviewer (a different owner, OpenCode/Claude) fetched both files at the pinned commit and matched all 8 quoted strings verbatim. It recorded `pass` with these caveats: the `--parallel` difference is cosmetic under Ninja, and the report missed the Python 3.9/3.11 minimums. The ledger answered `validated`. The maintainer preview shows author `gemini`, reviewer `claude` and verdict `pass`.
 
+**Codex against the live ledger (observed, 2026-11-26):** the user's real `~/.codex/config.toml` (Codex CLI 0.172.0) was backed up. A `nexus` entry was then appended, with `enabled_tools = ['discover']`, a separately enrolled contributor `codex` (owner `codex-gpt`), and the token read from a 0600 file by `/bin/sh -c`. Through `codex app-server` the following was observed:
+
+1. `mcpServerStatus/list` listed only `discover`.
+2. `discover` returned `{"repository": "frgmesh/anyps5", "tasks": []}`. The only task was already submitted by `gemini`, so a second contributor is not offered duplicate work.
+3. A forced `submit` call was refused by Codex itself: `tool 'submit' is disabled for MCP server 'nexus'`.
+4. After the maintainer ran `revoke`, `discover` returned `unauthorized`.
+5. Restoring the backup made the config byte-identical to the original (`cmp`), and `codex mcp list` no longer showed `nexus`.
+
+The audit gained only `enrolled` (codex) and `revoked` (mathis). A real Codex model turn could not run because the local ChatGPT login has expired (`refresh token has expired`); Codex therefore still has **no observed model-driven call**.
+
 The "participant" answers in the Antigravity chat were typed by the operator agent, so this run does not measure a non-technical person's experience.
 
 Obtain explicit approval for one public repository, one existing test issue, one comment and the repository-scoped App permissions. Confirm consent, snapshot the pinned default-branch revision, and use a separate disposable pilot ledger. Record the preflight, one bot-authored receipt verified by an independent read, the read-only retry/reconciliation outcome, a stale/withdrawn refusal, and final stop and credential removal. No cleanup by deletion is implied. Do not expose the loopback participant API remotely to run this gate. Judge whether to broaden the deployment only after actual client onboarding, maintainer feedback and the budget-matched comparison.
