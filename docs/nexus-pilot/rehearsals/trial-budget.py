@@ -204,7 +204,7 @@ def prepare_llama(port, prompt):
 
 
 def run_arm(base, tasks, sources, workers, prepare, *, ledger=None, credentials=(), clock=monotonic):
-    """Run scripted action turns. `prepare` builds a request without dispatching it."""
+    """Return reports, counters, stops, traces and known usage; `prepare` must not send."""
     if ledger is not None and (workers != 2 or len(credentials) != workers):
         raise ValueError("Nexus rehearsal requires two contributor credentials")
     lines = {path: source.split("\n") for path, source in sources.items()}
@@ -295,4 +295,4 @@ def run_arm(base, tasks, sources, workers, prepare, *, ledger=None, credentials=
     with ThreadPoolExecutor(max_workers=workers) as pool:
         outcomes = list(pool.map(participant, range(workers)))
     reports, stops, traces = map(list, zip(*outcomes))
-    return reports, budget.snapshot(), stops, traces
+    return reports, budget.snapshot(), stops, traces, budget.usage()

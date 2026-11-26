@@ -98,9 +98,12 @@ def test_opencode_connects_and_removes_configuration(host_setup):
 
 @pytest.mark.parametrize("transport", ["stdio", "http"])
 def test_opencode_turn_calls_nexus_and_enforces_local_deny(host_setup, transport):
+    from fcntl import ioctl
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     import pty
     import socket
+    import struct
+    import termios
     import threading
     import time
 
@@ -165,17 +168,29 @@ def test_opencode_turn_calls_nexus_and_enforces_local_deny(host_setup, transport
         "mcp": {"servers": {"nexus": server}},
         "permissions": [{"action": "nexus_submit", "resource": "*", "effect": "deny"}],
     }))
-    # shortcut: `opencode run` 2.0.21 does not start MCP servers here; drive the TUI until that changes.
+    # shortcut: v2.0.21 `run` does not start MCP here; wait for both TUI and MCP readiness before typing.
+    log = Path(env["HOME"]) / ".local/share/opencode/log/opencode.log"
+    prompt = b"Use Nexus."
     master, terminal = pty.openpty()
     try:
-        with subprocess.Popen([binary, "--standalone", "--auto", "--prompt", "Use Nexus."], cwd=work,
+        ioctl(terminal, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 110, 0, 0))
+        with subprocess.Popen([binary, "--standalone", "--auto"], cwd=work,
                               env=env | {"TERM": "xterm-256color", "FIXTURE_API_KEY": "fixture"},
                               stdin=terminal, stdout=terminal, stderr=terminal) as process:
             try:
                 end = time.monotonic() + 45
+                output = b""
+                typed = sent = False
                 while time.monotonic() < end and not (seen and len(seen[-1][1]) >= 3):
                     if select([master], [], [], 0.5)[0]:
-                        os.read(master, 65_536)
+                        output += os.read(master, 65_536)
+                    if (not typed and b"Build" in output and log.is_file()
+                            and b'message="mcp connected" server=nexus tools=4' in log.read_bytes()):
+                        os.write(master, prompt)
+                        typed = True
+                    if typed and not sent and prompt in output:
+                        os.write(master, b"\r")
+                        sent = True
             finally:
                 process.terminate()
     finally:
@@ -185,10 +200,12 @@ def test_opencode_turn_calls_nexus_and_enforces_local_deny(host_setup, transport
         os.close(master)
         os.close(terminal)
 
+    assert sent, "OpenCode did not render a usable prompt with the Nexus catalog connected"
+    assert seen, "OpenCode did not send the prompt to the scripted provider"
     tools, results = seen[-1]
     assert len(results) == 3, seen
     assert {"nexus_discover", "nexus_claim"} <= set(tools) and "nexus_submit" not in tools
-    assert json.loads(results[0])["tasks"][0]["id"] == "guide"
+    assert json.loads(results[0]).get("tasks", [{}])[0].get("id") == "guide", results[0]
     assert json.loads(results[1]) == {"lease": 1}
     assert 'No tool named \\"nexus_submit\\"' in results[2] or 'No tool named "nexus_submit"' in results[2]
     events = [event["event"] for event in ledger.audit()]

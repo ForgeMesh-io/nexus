@@ -247,7 +247,7 @@ def test_same_action_loop_scopes_reads_and_keeps_private_outputs(tmp_path, arm, 
         return 200, send
 
     sources["build.md"] = "first\nfixture build\nthird\n"
-    reports, counters, stops, traces = run_arm(base, tasks, sources, workers, prepare, ledger=ledger, credentials=credentials)
+    reports, counters, stops, traces, _ = run_arm(base, tasks, sources, workers, prepare, ledger=ledger, credentials=credentials)
     assert all(len(rows) == 1 for rows in reports)
     assert sorted(rows[0]["task"] for rows in reports) == (["guide"] * workers if ledger is None else ["build", "guide"])
     if ledger is not None:
@@ -283,8 +283,8 @@ def test_late_ledger_receipt_is_retained_but_report_is_not_offered_for_review(tm
                   ({"op": "start", "task": "guide"} if len(history) == 1 else {"op": "submit", "report": "fixture"}))
         return 200, lambda *_: (action, Usage(100, 20))
 
-    reports, counters, stops, traces = gate["run_arm"](base, tasks, {"guide.md": "fixture"}, 2, prepare,
-                                                       ledger=ledger, credentials=credentials, clock=lambda: now[0])
+    reports, counters, stops, traces, _ = gate["run_arm"](base, tasks, {"guide.md": "fixture"}, 2, prepare,
+                                                          ledger=ledger, credentials=credentials, clock=lambda: now[0])
     assert reports == [[], []]
     assert stops[0] == "deadline" and counters[0]["tools"] == 2
     assert traces[0][-1] == {"op": "submit", "error": "deadline"}
@@ -312,7 +312,7 @@ def test_read_ranges_fail_closed_and_count_refusals():
         return 200, lambda *_: (errors[step][0], Usage(100, 20))
 
     tasks = [dict(task="guide", paths=["guide.md"])]
-    reports, counters, stops, _ = gate["run_arm"]("a" * 40, tasks, {"guide.md": "first\n" + "é" * 4097}, 1, prepare)
+    reports, counters, stops, _, _ = gate["run_arm"]("a" * 40, tasks, {"guide.md": "first\n" + "é" * 4097}, 1, prepare)
     assert reports == [[]] and stops == ["model_stop"]
     assert counters[0]["tools"] == 7
 
@@ -328,10 +328,34 @@ def test_runner_preserves_partial_reports_when_model_response_is_lost():
         return 200, (lost if action is None else lambda *_: (action, Usage(100, 20)))
 
     tasks = [dict(task="guide", paths=["guide.md"])]
-    reports, counters, stops, traces = gate["run_arm"]("a" * 40, tasks, {"guide.md": "fixture"}, 1, prepare)
+    reports, counters, stops, traces, _ = gate["run_arm"]("a" * 40, tasks, {"guide.md": "fixture"}, 1, prepare)
     assert reports[0][0]["report"] == "fixture"
     assert counters == [{"requests": 3, "tools": 2, "tokens": 240, "unknown": 1}]
     assert stops == ["unknown_usage"] and traces[0][-1] == {"op": "model", "error": "unknown_usage"}
+
+
+def test_arm_returns_usage_from_the_completed_workers_even_after_other_worker_loses_response():
+    recorded = Event()
+
+    def prepare(worker, history):
+        if worker == 0 and len(history) == 1:
+            return 200, lambda *_: ({"op": "start", "task": "guide"}, Usage(100, 20, cached=10, reasoning=5))
+        if worker == 0:
+            recorded.set()
+            return 200, lambda *_: ({"op": "stop"}, Usage(25, 5))
+
+        def lost(*_):
+            assert recorded.wait(2)
+            return None, None
+
+        return 200, lost
+
+    tasks = [dict(task="guide", paths=["guide.md"])]
+    _, counters, _, _, usage = gate["run_arm"]("a" * 40, tasks, {"guide.md": "fixture"}, 2, prepare)
+    assert usage[0].input >= 100 and usage[0].output >= 20
+    assert usage[0].cached == 10 and usage[0].reasoning == 5
+    assert usage[0].total() == counters[0]["tokens"]
+    assert usage[1] == Usage(0, 0) and counters[1]["unknown"] == 1
 
 
 def test_next_request_gets_only_its_own_action_and_result():
@@ -344,7 +368,7 @@ def test_next_request_gets_only_its_own_action_and_result():
         return 200, lambda *_: (action, Usage(100, 20))
 
     tasks = [dict(task="guide", paths=["guide.md"])]
-    reports, counters, stops, _ = gate["run_arm"]("a" * 40, tasks, {"guide.md": "fixture"}, 2, prepare)
+    reports, counters, stops, _, _ = gate["run_arm"]("a" * 40, tasks, {"guide.md": "fixture"}, 2, prepare)
     assert reports == [[], []] and stops == ["model_stop", "model_stop"]
     assert [w["requests"] for w in counters] == [2, 2]
 
@@ -353,7 +377,7 @@ def test_adapter_context_refusal_is_not_counted_as_a_tool_call():
     def prepare(worker, history):
         return 4096, lambda *_: (NoAction("prompt_too_large"), Usage(0, 0))
 
-    reports, counters, stops, traces = gate["run_arm"]("a" * 40, [], {}, 1, prepare)
+    reports, counters, stops, traces, _ = gate["run_arm"]("a" * 40, [], {}, 1, prepare)
     assert reports == [[]] and stops == ["prompt_too_large"]
     assert counters == [{"requests": 1, "tools": 0, "tokens": 0, "unknown": 0}]
     assert traces == [[{"op": "model", "error": "prompt_too_large"}]]
@@ -473,7 +497,7 @@ def test_loopback_adapter_cannot_dispatch_beyond_the_worker_partition(workers):
             def prepare(worker, history):
                 return gate["prepare_llama"](server.server_port, f"{worker}:{len(history) - 1}")
 
-            reports, counters, stops, traces = gate["run_arm"]("a" * 40, [], {}, workers, prepare)
+            reports, counters, stops, traces, _ = gate["run_arm"]("a" * 40, [], {}, workers, prepare)
         finally:
             server.shutdown()
             serving.join()

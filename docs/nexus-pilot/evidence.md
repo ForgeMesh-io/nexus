@@ -42,7 +42,7 @@ unshare --user --map-root-user --net bash -eu -c '
 
 Observed from outside the checkout: **200 passed in 35.51 s**, `OK: swarm 'nexus', 8 task(s)`. SHA-256 of the tested `forgemesh_nexus-0.1.0a1-py3-none-any.whl`: `522e52d4a49694faaf4751f7daaa295dfad8d8c416b574df23ac61520bd73151`. This identifies the tested build, not a signed release or promise of byte-identical builds. See the [operator rehearsal](operators.md#rehearse-without-github) for the installed console commands and the [participant guide](participants.md) for the MCP steps.
 
-With the same installed wheel, the expanded suite (including the experimental trial gate and transport) returned **236 passed in 44.75 s** and `OK: swarm 'nexus', 8 task(s)`. The trial files are rehearsal artifacts outside the production wheel.
+With the same installed wheel, the expanded suite (including the experimental trial gate and transport) returned **237 passed in 43.98 s** and `OK: swarm 'nexus', 8 task(s)`. The trial files are rehearsal artifacts outside the production wheel.
 
 For the historical check with a read-only mount and no network, use the pre-existing local test image:
 
@@ -57,7 +57,7 @@ Baseline `97fbb27bb683ee41f851390aa6bdfc1e4d6fa424`: **98 passed**, configuratio
 
 ### OpenCode diagnostic limits
 
-With a fresh home and project containing `mcp.servers.nexus`, `opencode api --standalone GET /api/config` saw the entry but `GET /api/mcp` returned an empty catalog and its connect route returned `MCP server not found: nexus`. The shared-service probe timed out waiting for startup. The standalone TUI is the proven path for connection and removal in this build; the automation initially misread ANSI repaint fragments rather than a failed connection. An earlier provider probe reported `provider.no-route` for a catalog `openai` override and a closed socket for a custom provider pointed at an unused port; a custom `@opencode/ai/providers/openai-compatible` provider pointed at a live loopback stub works. In this build `opencode run --standalone` reached the model but never started the configured MCP server (no `nexus_*` tool listed, no MCP log line), so the acceptance turn drives the standalone TUI with `--auto --prompt`. Do not generalize these observations beyond v2.0.21.
+With a fresh home and project containing `mcp.servers.nexus`, `opencode api --standalone GET /api/config` saw the entry but `GET /api/mcp` returned an empty catalog and its connect route returned `MCP server not found: nexus`. The shared-service probe timed out waiting for startup. The standalone TUI is the proven path for connection and removal in this build; the automation initially misread ANSI repaint fragments rather than a failed connection. An earlier provider probe reported `provider.no-route` for a catalog `openai` override and a closed socket for a custom provider pointed at an unused port; a custom `@opencode/ai/providers/openai-compatible` provider pointed at a live loopback stub works. In this build `opencode run --standalone` reached the model without starting MCP. The TUI's `--prompt` also raced stdio initialization: the scripted provider's first tool list omitted `nexus_discover`, and OpenCode refused the call before listing the tool on the next request. For the interactive test, wait for both the terminal prompt and MCP catalog before sending input. Do not generalize these observations beyond v2.0.21.
 
 ## Live gate
 
