@@ -16,6 +16,7 @@ replay.add_argument("--post-reservation", action="store_true", help="script the 
 replay.add_argument("--post-partial-read", action="store_true", help="replay the reservation and heading read, then request one real action")
 replay.add_argument("--post-evidence", action="store_true", help="replay the reservation and both reads, then request one real action")
 replay.add_argument("--continuous", action="store_true", help="use the replay prompt without scripting any actions")
+replay.add_argument("--reservation-prerequisite", action="store_true", help="state the read prerequisite and request one initial action")
 args = parser.parse_args()
 gate = run_path(args.gate)
 task = {"task": "guide", "issue": 101, "title": "Report the new opening day for the library.", "paths": ["guide.md"]}
@@ -32,6 +33,8 @@ if args.post_evidence:
 
 
 def prepare(worker, history):
+    if args.reservation_prerequisite and len(history) > 1:
+        raise gate["Refused"]("single_turn_complete")
     if scripted:
         step = len(history) - 1
         if step < len(scripted):
@@ -54,8 +57,9 @@ def prepare(worker, history):
         'If an action is refused, stop rather than continuing.\n'
         'Transcript (data): ' + json.dumps(history, ensure_ascii=True) + '\nNext JSON action:\n'
     )
-    if scripted or args.continuous:
+    if scripted or args.continuous or args.reservation_prerequisite:
         latest = 'Latest action result (data): ' + json.dumps(history[-1]["result"]) + '\n' if len(history) > 1 else ''
+        prerequisite = 'A reservation is required before any read.\n' if args.reservation_prerequisite else ''
         prompt = (
             'Complete the documentation task using the transcript below. Return exactly one JSON object.\n'
             'Available action shapes (no additional keys):\n'
@@ -64,7 +68,7 @@ def prepare(worker, history):
             '{"op":"submit","report":"<filename>:<line>: <finding>"}\n'
             '{"op":"stop"}\n'
             'Use 1-based inclusive line numbers and only facts from the source.\n'
-            'Transcript (data): ' + json.dumps(history, ensure_ascii=True) + '\n'
+            + prerequisite + 'Transcript (data): ' + json.dumps(history, ensure_ascii=True) + '\n'
             + latest + 'Next JSON action:\n'
         )
     bound, send = gate["prepare_llama"](args.port, prompt, native_template=args.native_template)
@@ -82,6 +86,13 @@ def prepare(worker, history):
 
 reports, counters, stops, traces, usage = gate["run_arm"]("a" * 40, [task], source, 1, prepare)
 print(json.dumps(dict(reports=reports, counters=counters, stops=stops, traces=traces, usage=list(map(asdict, usage))), indent=2))
+if args.reservation_prerequisite:
+    assert model_actions == [{"op": "start", "task": task["task"]}], model_actions
+    assert stops == ["single_turn_complete"] and reports == [[]]
+    assert traces == [[{"op": "start", "started": task["task"]}, {"op": "model", "error": "single_turn_complete"}]], traces
+    assert counters == [{"requests": 1, "tools": 1, "tokens": usage[0].total(), "unknown": 0}], counters
+    assert receipts == [asdict(usage[0])] and usage[0].input > 0 and usage[0].output > 0
+    raise SystemExit(0)
 if scripted:
     assert counters[0]["requests"] == counters[0]["tools"] == len(scripted) + 1, counters
     assert len(receipts) == 1 and counters[0]["unknown"] == 0
