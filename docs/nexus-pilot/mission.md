@@ -12,3 +12,5 @@ One public repository per install. A maintainer selects a real need (optionally 
 4. Value proof: record common-budget comparisons against single and independent agents. Do not promote a pilot on throughput alone or test counts alone.
 
 Tag evidence as **local observed**, **simulated**, **live observed**, or **not run**. Release requires a reproducible acceptance audit, including controller/credential isolation, publish/reconcile, revocation, operator recovery and maintainer feedback. Public release and any change in GitHub access require the appropriate authorization. Preserve the existing Apache-2.0 license and operational path; neither a change of license nor a repository deletion is part of the pilot.
+
+See the [release roadmap](roadmap.md) for the current evidence and remaining gates.

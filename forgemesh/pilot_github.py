@@ -112,6 +112,25 @@ class GitHubReader:
             raise PilotError("invalid_consent")
         return parse_consent(raw)
 
+    def human_work(self, issue_path):
+        """Reuse the same bounded timeline check at discovery and before dispatch."""
+        linked = 0
+        for page in (1, 2):
+            batch = self._request(f"{issue_path}/timeline?per_page=100&page={page}")
+            if not isinstance(batch, list) or len(batch) > 100 or any(
+                    not isinstance(event, dict) or not isinstance(event.get("event"), str) for event in batch):
+                raise PilotError("github_unavailable")
+            for event in batch:
+                kind = event["event"]
+                linked += {"connected": 1, "disconnected": -1}.get(kind, 0)
+                source = event.get("source") if kind == "cross-referenced" else None
+                other = source.get("issue") if isinstance(source, dict) else None
+                if isinstance(other, dict) and "pull_request" in other and other.get("state") == "open":
+                    return "open_pull_request"
+            if len(batch) < 100:
+                return "linked_pull_request" if linked > 0 else None
+        return "timeline_too_long"
+
 
 class GitHubPublisher(GitHubReader):
     def __init__(self, installation_token, bot_user_id, *, opener=None):
@@ -157,6 +176,8 @@ class GitHubPublisher(GitHubReader):
             raise PilotError("not_checked")
         check_consent(self.consent(path, head), issue, target["paths"], target["checked"] or ())
         base = target["base"] if head == target["base"] or self._unchanged(path, target, head) else head
+        if reason := self.human_work(path_issue):
+            raise PilotError(reason)
         intent = ledger.begin_dispatch(token, task, base, head)
         if intent is None:
             raise PilotError("no_dispatch")

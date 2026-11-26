@@ -34,11 +34,12 @@ def approved(tmp_path):
 
 class API:
     def __init__(self, *, base=BASE, lose_response=False, issue=None, consent=CONSENT,
-                 compare=None):
+                 compare=None, timeline=()):
         self.base = base
         self.compare = {"status": "ahead", "total_commits": 1, "files": [{"filename": "docs/guide.md"}]} \
             if compare is None else compare
         self.consent = consent
+        self.timeline = timeline
         self.issue = {"number": 7, "state": "open"} if issue is None else issue
         self.lose_response = lose_response
         self.comments = []
@@ -61,6 +62,9 @@ class API:
             payload = {"full_name": "example/project", "private": False, "default_branch": "main"}
         elif path == ISSUE:
             payload = self.issue
+        elif path.startswith(ISSUE + "/timeline?per_page=100&page="):
+            page = int(path.rsplit("=", 1)[1])
+            payload = list(self.timeline[(page - 1) * 100:page * 100])
         elif path == HEAD:
             payload = {"sha": self.base}
         elif path == f"/repos/example/project/compare/{BASE}...{self.base}":
@@ -150,6 +154,30 @@ def test_github_stale_or_ineligible_target_never_dispatches(approved, base, issu
         gateway(api).publish(ledger, token, "guide")
     assert all(method == "GET" for method, _ in api.requests)
     assert "dispatch_started" not in [event["event"] for event in ledger.audit()]
+
+
+@pytest.mark.parametrize("timeline,error", [
+    ([{"event": "cross-referenced", "source": {"issue": {"state": "open", "pull_request": {}}}}],
+     "open_pull_request"),
+    ([{"event": "commented"}] * 100 + [{"event": "connected"}], "linked_pull_request"),
+    ([{"event": "commented"}] * 200, "timeline_too_long"),
+    ([None], "github_unavailable"),
+])
+def test_publication_rechecks_human_work_without_spending_grant(approved, timeline, error):
+    _, ledger, token, _, _ = approved
+    api = API(timeline=timeline)
+    publisher = gateway(api)
+    with pytest.raises(PilotError, match=error):
+        publisher.publish(ledger, token, "guide")
+    assert all(method == "GET" for method, _ in api.requests)
+    assert "dispatch_started" not in [event["event"] for event in ledger.audit()]
+    api.timeline = [{"event": "connected"}, {"event": "disconnected"},
+                    {"event": "cross-referenced", "source": {"issue": {"state": "closed", "pull_request": {}}}}]
+    assert publisher.publish(ledger, token, "guide") == 123
+    calls = len(api.requests)
+    api.timeline = timeline
+    assert publisher.publish(ledger, token, "guide") == 123
+    assert api.requests[calls:] == [("GET", COMMENTS + "?per_page=100&page=1")]
 
 
 def test_github_429_does_not_repeat_the_post(approved):

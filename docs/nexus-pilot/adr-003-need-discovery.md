@@ -24,7 +24,7 @@ The operator had to find issues and type each `add-task` by hand. Nexus had no v
 - has an assignee;
 - has an open pull request cross-referencing it in the [timeline](https://docs.github.com/en/rest/using-the-rest-api/issue-event-types) (`source.issue.pull_request` present, `state` open);
 - has a net-positive `connected` / `disconnected` balance, meaning a manually linked PR;
-- has more than 200 timeline events: unbounded history is skipped, not guessed.
+- fills both 100-event pages without a conclusive result: Nexus cannot prove that it has seen the end of the timeline within its read budget.
 
 Each remaining issue is returned with its labels, comment count and last update. It comes with a ready `add_task` object: id `issue-N`, the current head as `base`, a title cut to 256 bytes, and `paths` set to the consent file's `read` list.
 
@@ -33,11 +33,13 @@ Nothing is written. The maintainer chooses which proposals to pipe into `add-tas
 - Reads are anonymous by default. A run makes at most 3 + 15 × 3 = 48 requests, under GitHub's 60 unauthenticated requests per hour.
 - `NEXUS_GITHUB_TOKEN`, if set, is used only to raise that limit. It is never printed.
 
+**Publication recheck (2026-11-26):** before starting a new dispatch, the publisher checks assignees and reuses the same bounded timeline check. An assignment, visible PR activity, or a timeline that cannot be checked within the bound blocks the send without spending the grant. Once dispatch has started, reconciliation reads comments only; it never goes through preflight again or sends another POST.
+
 ## Not decided here
 
 - **Recent human comments** are not treated as a claim. A comment like "I'll take this" is free text, and parsing it is exactly the kind of non-binding signal the notebook warns about. The maintainer sees `comments` and `updated_at` and decides.
 - **Ranking**: candidates keep the maintainer's own order in the consent file. No score is invented.
-- **Freshness after selection**: a human may self-assign after the proposal. *Amended 2026-11-26:* the publisher now refuses with `assigned`, before any grant is spent, if the issue has an assignee when it re-reads the issue. A linked pull request opened after selection is still not re-checked at publication.
+- **Freshness limits**: GitHub does not make the preflight reads and comment POST atomic. Unlinked work and activity not visible to this credential may be missed. The timeline heuristic can also skip useful work (for example, a manually linked but abandoned PR).
 - **Linked branches**: the `development` panel is GraphQL-only. Not read.
 
 ## Consequences
