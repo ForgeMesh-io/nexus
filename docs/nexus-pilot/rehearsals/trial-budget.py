@@ -187,7 +187,8 @@ def prepare_llama(port, prompt):
         if len(tokens) + output >= slot:
             return NoAction("prompt_too_large"), Usage(0, 0)
         result = post("/completion", {"prompt": tokens, "n_predict": output, "n_cmpl": 1,
-                                     "cache_prompt": False, "stream": False, "temperature": 0})
+                                     "cache_prompt": False, "stream": False, "temperature": 0,
+                                     "json_schema": {"type": "object"}})
         count, generated = result.get("tokens_evaluated"), result.get("tokens_predicted")
         if type(count) is not int or count != len(tokens) or type(generated) is not int or generated < 0:
             return None, None

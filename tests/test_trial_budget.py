@@ -432,6 +432,7 @@ def test_loopback_adapter_reserves_a_slot_and_requires_complete_usage(mode):
             assert wire[1][1]["prompt"] == [11, 22, 33]
             assert wire[1][1]["n_predict"] == 768 and wire[1][1]["n_cmpl"] == 1
             assert wire[1][1]["cache_prompt"] is False and wire[1][1]["stream"] is False
+            assert wire[1][1]["json_schema"] == {"type": "object"}
         finally:
             release.set()
             server.shutdown()

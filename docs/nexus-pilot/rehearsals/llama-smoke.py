@@ -43,7 +43,9 @@ def wait_for(processing, seconds):
 assert [slot["n_ctx"] for slot in slots()] == [4096, 4096]
 assert wait_for(False, 2), "start with a fresh, idle server"
 if args.mode == "complete":
-    bound, send = module["prepare_llama"](args.port, 'Return only the JSON object declaring the action stop.\nOutput: {"op":')
+    bound, send = module["prepare_llama"](
+        args.port, 'There are no tasks. Return exactly this JSON object and nothing else: {"op":"stop"}\nOutput:\n',
+    )
     simultaneous = Barrier(2, timeout=5)
 
     def both(deadline, stop):
@@ -52,7 +54,8 @@ if args.mode == "complete":
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(lambda worker: budget.model(worker, bound, both), range(2)))
-    print("Result types:", [type(result).__name__ for result in results])
+    print("Synthetic actions:", results)
+    assert results == [{"op": "stop"}] * 2
     assert all(row["requests"] == 1 and 0 < row["tokens"] <= 4096 and row["unknown"] == 0 for row in budget.snapshot())
 else:
     bound, send = module["prepare_llama"](args.port, "Continue listing the numbers in English for as long as possible.\n1 one\n2 two\n3 three\n")
