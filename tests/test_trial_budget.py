@@ -6,6 +6,7 @@ from runpy import run_path
 from threading import Barrier, Event
 
 import pytest
+from forgemesh.pilot import Pilot
 
 gate = run_path(str(Path(__file__).resolve().parents[1] / "docs/nexus-pilot/rehearsals/trial-budget.py"))
 Budget, Refused, Usage = (gate[name] for name in ("Budget", "Refused", "Usage"))
@@ -182,3 +183,149 @@ def test_unknown_usage_signals_other_in_flight_worker_and_discards_its_output():
         with pytest.raises(Refused, match="unknown_usage"):
             pending.result(timeout=5)
     assert budget.snapshot()[1] == {"requests": 1, "tools": 0, "tokens": 120, "unknown": 0}
+
+
+@pytest.mark.parametrize("arm, workers", [("solo", 1), ("independent", 2), ("nexus", 2)])
+def test_same_action_loop_scopes_reads_and_keeps_private_outputs(tmp_path, arm, workers):
+    run_arm = gate["run_arm"]
+    base = "a" * 40
+    tasks = [dict(task="guide", issue=101, title="Guide", paths=["guide.md"]),
+             dict(task="build", issue=102, title="Build", paths=["build.md"])]
+    ledger = None
+    credentials = []
+    if arm == "nexus":
+        ledger = Pilot(tmp_path / "pilot.db")
+        ledger.initialize("example/project", publication_limit=0, active_limit=2, lease_seconds=900)
+        for task in tasks:
+            ledger.add_task(base=base, **task)
+        credentials = [ledger.enroll(f"worker-{i}", f"owner-{i}", "contributor") for i in range(workers)]
+    sources = {"guide.md": "fixture guide", "build.md": "fixture build", "secret": "not in scope"}
+    begun = Barrier(workers, timeout=5)
+    picked = Barrier(workers, timeout=5)
+
+    def prepare(worker, history):
+        step = len(history) - 1
+        row = history[-1]
+        if step == 0:
+            assert row == {"base": base, "tasks": tasks}
+
+        def send(deadline, stop):
+            if step == 0:
+                begun.wait()
+            if step == 1:
+                picked.wait()
+            if step == 0:
+                action = {"op": "start", "task": "guide"}
+            elif history[1] == {"error": "busy"}:
+                action = {1: {"op": "discover"}, 2: {"op": "start", "task": "build"},
+                          3: {"op": "read", "path": "build.md", "first": 2, "last": 2},
+                          4: {"op": "submit", "report": "build"},
+                          5: {"op": "stop"}}[step]
+                if step == 2:
+                    assert [item["id"] for item in row["tasks"]] == ["build"]
+                if step == 4:
+                    assert row == {"first": 2, "last": 2, "lines": 3, "text": "fixture build"}
+            elif step == 1:
+                action = {"op": "read", "path": "secret", "first": 1, "last": 1}
+            elif step == 2:
+                assert row == {"error": "out_of_scope"}
+                action = {"op": "read", "path": "guide.md", "first": 1, "last": 1}
+            elif step == 3:
+                assert row == {"first": 1, "last": 1, "lines": 1, "text": "fixture guide"}
+                action = {"op": "submit", "report": "é" * 1025}
+            elif step == 4:
+                assert row == {"error": "invalid_report"}
+                action = {"op": "submit", "report": "é" * 1024}
+            else:
+                assert set(row) == {"digest"}
+                action = {"op": "stop"}
+            return action, Usage(100, 20)
+
+        return 200, send
+
+    sources["build.md"] = "first\nfixture build\nthird\n"
+    reports, counters, stops, traces = run_arm(base, tasks, sources, workers, prepare, ledger=ledger, credentials=credentials)
+    assert all(len(rows) == 1 for rows in reports)
+    assert sorted(rows[0]["task"] for rows in reports) == (["guide"] * workers if ledger is None else ["build", "guide"])
+    if ledger is not None:
+        events = [item["event"] for item in ledger.audit()]
+        assert events.count("claimed") == events.count("submitted") == 2 and "authorized" not in events
+    assert [row["requests"] for row in counters] == [6] * workers
+    assert [row["tools"] for row in counters] == [5] * workers
+    assert stops == ["model_stop"] * workers
+    assert sorted(event["started"] for trace in traces for event in trace if "started" in event) == (
+        ["guide"] * workers if ledger is None else ["build", "guide"])
+    assert sum(event.get("error") == "busy" for trace in traces for event in trace) == (ledger is not None)
+
+
+def test_late_ledger_receipt_is_retained_but_report_is_not_offered_for_review(tmp_path, monkeypatch):
+    now = [0.0]
+    base = "a" * 40
+    tasks = [dict(task="guide", issue=101, title="Guide", paths=["guide.md"])]
+    ledger = Pilot(tmp_path / "pilot.db")
+    ledger.initialize("example/project", publication_limit=0, active_limit=2, lease_seconds=900)
+    ledger.add_task(base=base, **tasks[0])
+    credentials = [ledger.enroll(f"worker-{i}", f"owner-{i}", "contributor") for i in range(2)]
+    submit = ledger.submit
+
+    def late_submit(*args):
+        digest = submit(*args)
+        now[0] = 900.0
+        return digest
+
+    monkeypatch.setattr(ledger, "submit", late_submit)
+
+    def prepare(worker, history):
+        action = ({"op": "stop"} if worker else
+                  ({"op": "start", "task": "guide"} if len(history) == 1 else {"op": "submit", "report": "fixture"}))
+        return 200, lambda *_: (action, Usage(100, 20))
+
+    reports, counters, stops, traces = gate["run_arm"](base, tasks, {"guide.md": "fixture"}, 2, prepare,
+                                                       ledger=ledger, credentials=credentials, clock=lambda: now[0])
+    assert reports == [[], []]
+    assert stops[0] == "deadline" and counters[0]["tools"] == 2
+    assert traces[0][-1] == {"op": "submit", "error": "deadline"}
+    assert "submitted" in [item["event"] for item in ledger.audit()]
+
+
+def test_read_ranges_fail_closed_and_count_refusals():
+    errors = [
+        ({"op": "read", "path": "guide.md", "first": 1, "last": 1}, "out_of_scope"),
+        ({"op": "start", "task": "guide"}, None),
+        ({"op": "read", "path": "guide.md", "first": True, "last": 2}, "invalid_range"),
+        ({"op": "read", "path": "guide.md", "first": 1, "last": 0}, "invalid_range"),
+        ({"op": "read", "path": "guide.md", "first": 1, "last": 129}, "invalid_range"),
+        ({"op": "read", "path": "guide.md", "first": 3, "last": 3}, "invalid_range"),
+        ({"op": "read", "path": "guide.md", "first": 2, "last": 2}, "read_too_large"),
+        ({"op": "stop"}, None),
+    ]
+
+    def prepare(worker, history):
+        step = len(history) - 1
+        if step and errors[step - 1][1]:
+            assert history[-1]["error"] == errors[step - 1][1]
+            if errors[step - 1][1] == "invalid_range":
+                assert history[-1]["lines"] == 2
+        return 200, lambda *_: (errors[step][0], Usage(100, 20))
+
+    tasks = [dict(task="guide", paths=["guide.md"])]
+    reports, counters, stops, _ = gate["run_arm"]("a" * 40, tasks, {"guide.md": "first\n" + "é" * 4097}, 1, prepare)
+    assert reports == [[]] and stops == ["model_stop"]
+    assert counters[0]["tools"] == 7
+
+
+def test_runner_preserves_partial_reports_when_model_response_is_lost():
+    actions = iter([{"op": "start", "task": "guide"}, {"op": "submit", "report": "fixture"}, None])
+
+    def lost(*args):
+        raise TimeoutError("transport lost the response")
+
+    def prepare(worker, history):
+        action = next(actions)
+        return 200, (lost if action is None else lambda *_: (action, Usage(100, 20)))
+
+    tasks = [dict(task="guide", paths=["guide.md"])]
+    reports, counters, stops, traces = gate["run_arm"]("a" * 40, tasks, {"guide.md": "fixture"}, 1, prepare)
+    assert reports[0][0]["report"] == "fixture"
+    assert counters == [{"requests": 3, "tools": 2, "tokens": 240, "unknown": 1}]
+    assert stops == ["unknown_usage"] and traces[0][-1] == {"op": "model", "error": "unknown_usage"}
