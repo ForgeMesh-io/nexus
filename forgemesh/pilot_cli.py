@@ -45,6 +45,13 @@ def publish_local(ledger, token, task, current_base, destination):
     return ledger.record_publication(token, payload["marker"], payload["issue"])
 
 
+def publish_github(ledger, token, task, bot_user_id):
+    """The installation token comes only from NEXUS_GITHUB_TOKEN so it never reaches stdin, argv or output."""
+    from .pilot_github import GitHubPublisher
+
+    return GitHubPublisher(os.environ.get("NEXUS_GITHUB_TOKEN"), bot_user_id).publish(ledger, token, task)
+
+
 def _object(pairs):
     result = dict(pairs)
     if len(result) != len(pairs):
@@ -65,6 +72,7 @@ def main():
         "authorize": ledger.authorize, "revoke": ledger.revoke,
         "stop": ledger.stop, "audit": ledger.audit,
         "publish-local": lambda **payload: publish_local(ledger, **payload),
+        "publish-github": lambda **payload: publish_github(ledger, **payload),
     }
     try:
         if args.action not in commands:
@@ -77,8 +85,9 @@ def main():
             if not isinstance(data, dict):
                 raise TypeError("expected object")
             command = commands[args.action]
-            if args.action == "publish-local":
-                inspect.signature(publish_local).bind(ledger, **data)
+            if args.action.startswith("publish-"):
+                publisher = publish_local if args.action == "publish-local" else publish_github
+                inspect.signature(publisher).bind(ledger, **data)
             else:
                 inspect.signature(command).bind(**data)
         except (ValueError, TypeError, RecursionError):

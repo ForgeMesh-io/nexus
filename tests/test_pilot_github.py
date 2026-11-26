@@ -151,3 +151,33 @@ def test_github_429_does_not_repeat_the_post(approved):
         with pytest.raises(PilotError, match="uncertain_dispatch"):
             gateway(api).publish(ledger, token, "guide")
     assert [path for method, path in api.requests if method == "POST"] == [COMMENTS]
+
+
+def test_operator_cli_publishes_with_env_token_once_and_never_echoes_it(approved, monkeypatch, capsys):
+    import sys
+
+    from forgemesh import pilot_cli, pilot_github
+
+    path, _, token, _, _ = approved
+    api = API()
+    secret = "ghs_" + "y" * 36
+    monkeypatch.setattr(pilot_github, "build_opener", lambda *handlers: type("O", (), {"open": api.open})())
+
+    def run(env=secret, **payload):
+        if env is None:
+            monkeypatch.delenv("NEXUS_GITHUB_TOKEN", raising=False)
+        else:
+            monkeypatch.setenv("NEXUS_GITHUB_TOKEN", env)
+        monkeypatch.setattr(sys, "argv", ["nexus-pilot", str(path), "publish-github"])
+        monkeypatch.setattr(sys, "stdin", io.TextIOWrapper(io.BytesIO(json.dumps(payload).encode())))
+        code = pilot_cli.main()
+        out = capsys.readouterr().out
+        assert secret not in out
+        return code, json.loads(out)
+
+    request = {"token": token, "task": "guide", "bot_user_id": 42}
+    assert run(None, **request) == (1, {"error": "invalid_publisher_configuration"})
+    assert run(**request, extra=1) == (1, {"error": "invalid_input"})
+    assert run(**request) == (0, 123)
+    assert run(**request) == (0, 123)
+    assert [path for method, path in api.requests if method == "POST"] == [COMMENTS]

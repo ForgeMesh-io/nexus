@@ -67,11 +67,13 @@ def test_opencode_connects_and_removes_configuration(host_setup):
             with subprocess.Popen([binary, "--standalone"], cwd=work, env=env | {"TERM": "xterm-256color"},
                                   stdin=terminal, stdout=terminal, stderr=terminal) as process:
                 try:
-                    end = time.monotonic() + 15
-                    output = b""
+                    end = time.monotonic() + 30
+                    raw = output = b""
                     phase = 0
                     while time.monotonic() < end and select([master], [], [], max(0, end - time.monotonic()))[0]:
-                        output += re.sub(rb"\x1b\[[0-?]*[ -/]*[@-~]", b"", os.read(master, 65_536))
+                        raw += os.read(master, 65_536)
+                        # Strip the whole stream: under load an escape sequence can be split across reads.
+                        output = re.sub(rb"\x1b\[[0-?]*[ -/]*[@-~]", b"", raw)
                         if phase == 0 and b"Build" in output:
                             os.write(master, b"/mcps\r")
                             phase = 1

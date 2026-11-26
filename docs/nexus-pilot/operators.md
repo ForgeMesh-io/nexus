@@ -70,6 +70,8 @@ There is a tested Python publisher adapter, but no enabled GitHub deployment. Be
 
 The adapter checks a public repository, an open unlocked issue and the current default-branch SHA before dispatch. Remote state can still change between preflight and POST. A stop or revoke blocks new grants, not a send already granted. Once a grant exists, a repeated call performs a bounded read-only reconciliation; it cannot send again, even on HTTP 429 or missing receipt. If there is no exact match for the body, marker and bot ID, keep the event unresolved and the quota spent. Never erase a grant to force a retry. Verify and record the intended live App setup before enabling any delivery; synthetic file receipts and HTTP doubles are not evidence of GitHub acceptance.
 
+From the trusted operator environment, run `nexus-pilot "$db" publish-github` with the installation token in `NEXUS_GITHUB_TOKEN` only (piped from your token minting step, never typed or stored). Send `{"token":"PUBLISHER","task":"TASK","bot_user_id":BOT_ID}` on standard input. It returns the GitHub comment ID. Repeat the same command to reconcile; it never posts twice.
+
 ## Stop, back up, recover, remove
 
 1. Revoke a credential via `nexus-pilot "$db" revoke` with `{"token":"MAINTAINER","actor":"alice"}`. For emergency stop use `stop` with `{"token":"MAINTAINER"}`; it persists across process restart. Stop the listener and publisher, and disable/revoke the dedicated App credential through the approved GitHub controls if one exists. Capture `audit` privately. Do not delete upstream comments or change human branch policies.
