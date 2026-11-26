@@ -177,6 +177,20 @@ The summary recorded **3,116 input + 94 output = 3,210 tokens**, `unknown: 0`, f
 
 **Observed in 84 s (exit 0):** Ministral chose `{"op":"start","task":"guide"}` and the dispatcher returned `{"started":"guide"}`. The sole client receipt matched engine task `0` (**714 input + 10 output = 724 tokens**, `unknown: 0`). The summary showed one request, one tool call, and no report; the probe stopped before any read. Both initial prompts were captured and compared: the prerequisite sentence was the only difference. The scripted read-first control still received `out_of_scope` and failed the probe.
 
+**Continuous with the initial prerequisite:** use `--native-template --continuous --reservation-prerequisite` in the same command. The first request uses the one-turn prerequisite prompt; later requests use the unmodified continuous prompt, including the latest dispatcher result. No actions are injected. The same continuous acceptance checks and receipt reconciliation apply. A scripted control checks that the sentence is present only on turn one and that an otherwise well-formed submission cannot pass the probe if the model never read line 2.
+
+**Observed in 417 s (exit 0):** Ministral reserved `guide`, read both lines in separate admitted calls, submitted one report, then chose `stop` on its own. All five receipts individually matched the engine in launch order:
+
+| Engine task | Model action | Result | Input | Output |
+|---|---|---|---:|---:|
+| `0` | `start` on `guide` | `started: guide` | 714 | 10 |
+| `11` | Read `guide.md:1–1` | Admitted | 744 | 32 |
+| `44` | Read `guide.md:2–2` | Admitted | 819 | 32 |
+| `77` | `submit` | One report admitted | 886 | 31 |
+| `109` | `stop` | `model_stop` | 1,010 | 10 |
+
+The report was `guide.md:2: The library's new opening day is **Tuesday**`. Line 2 (`The library now opens on Tuesday.`) was read before submission and supports the claim. The recomputed report SHA-256 matched the trace (`fe160ecef32175b90c8968a14ee94129ac63df1e0b793d6d91dbfe513a711eb2`). Totals were **4,173 input + 115 output = 4,288 tokens**, `unknown: 0`, five requests and four tool calls. This is one continuous run on a trusted two-line fixture with an in-memory reservation, not a qualification of the runner or the Nexus publication path.
+
 The runner returns known input/output totals and their cached/reasoning subsets for each worker, alongside counters, stops, traces and reports. Unknown attempts remain separate; in a two-worker rehearsal, losing one response does not erase already settled usage from the other worker. A cited result from a two-line trusted fixture is not sufficient to open the frozen pools. First exercise real-model context limits, source scoping and worker isolation with non-frozen inputs. The runner must also preserve the interrupted-run policy: discard late output, and disqualify any arm whose final usage is unknown.
 
 ## Blind review and analysis (assessor/operator only)

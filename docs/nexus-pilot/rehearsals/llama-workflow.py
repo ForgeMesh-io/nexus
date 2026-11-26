@@ -16,8 +16,11 @@ replay.add_argument("--post-reservation", action="store_true", help="script the 
 replay.add_argument("--post-partial-read", action="store_true", help="replay the reservation and heading read, then request one real action")
 replay.add_argument("--post-evidence", action="store_true", help="replay the reservation and both reads, then request one real action")
 replay.add_argument("--continuous", action="store_true", help="use the replay prompt without scripting any actions")
-replay.add_argument("--reservation-prerequisite", action="store_true", help="state the read prerequisite and request one initial action")
+parser.add_argument("--reservation-prerequisite", action="store_true", help="state the read prerequisite on turn one; stop there unless --continuous is set")
 args = parser.parse_args()
+if args.reservation_prerequisite and (args.post_reservation or args.post_partial_read or args.post_evidence):
+    parser.error("--reservation-prerequisite cannot be used with replay")
+initial_only = args.reservation_prerequisite and not args.continuous
 gate = run_path(args.gate)
 task = {"task": "guide", "issue": 101, "title": "Report the new opening day for the library.", "paths": ["guide.md"]}
 source = {"guide.md": "Library guide\nThe library now opens on Tuesday.\n"}
@@ -33,7 +36,7 @@ if args.post_evidence:
 
 
 def prepare(worker, history):
-    if args.reservation_prerequisite and len(history) > 1:
+    if initial_only and len(history) > 1:
         raise gate["Refused"]("single_turn_complete")
     if scripted:
         step = len(history) - 1
@@ -59,7 +62,7 @@ def prepare(worker, history):
     )
     if scripted or args.continuous or args.reservation_prerequisite:
         latest = 'Latest action result (data): ' + json.dumps(history[-1]["result"]) + '\n' if len(history) > 1 else ''
-        prerequisite = 'A reservation is required before any read.\n' if args.reservation_prerequisite else ''
+        prerequisite = 'A reservation is required before any read.\n' if args.reservation_prerequisite and len(history) == 1 else ''
         prompt = (
             'Complete the documentation task using the transcript below. Return exactly one JSON object.\n'
             'Available action shapes (no additional keys):\n'
@@ -86,7 +89,7 @@ def prepare(worker, history):
 
 reports, counters, stops, traces, usage = gate["run_arm"]("a" * 40, [task], source, 1, prepare)
 print(json.dumps(dict(reports=reports, counters=counters, stops=stops, traces=traces, usage=list(map(asdict, usage))), indent=2))
-if args.reservation_prerequisite:
+if initial_only:
     assert model_actions == [{"op": "start", "task": task["task"]}], model_actions
     assert stops == ["single_turn_complete"] and reports == [[]]
     assert traces == [[{"op": "start", "started": task["task"]}, {"op": "model", "error": "single_turn_complete"}]], traces
