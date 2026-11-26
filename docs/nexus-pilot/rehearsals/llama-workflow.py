@@ -14,6 +14,7 @@ parser.add_argument("--explicit-actions", action="store_true")
 replay = parser.add_mutually_exclusive_group()
 replay.add_argument("--post-reservation", action="store_true", help="script the reservation, then request one real action")
 replay.add_argument("--post-partial-read", action="store_true", help="replay the reservation and heading read, then request one real action")
+replay.add_argument("--post-evidence", action="store_true", help="replay the reservation and both reads, then request one real action")
 args = parser.parse_args()
 gate = run_path(args.gate)
 task = {"task": "guide", "issue": 101, "title": "Report the new opening day for the library.", "paths": ["guide.md"]}
@@ -21,10 +22,12 @@ source = {"guide.md": "Library guide\nThe library now opens on Tuesday.\n"}
 receipts = []
 model_actions = []
 scripted = []
-if args.post_reservation or args.post_partial_read:
+if args.post_reservation or args.post_partial_read or args.post_evidence:
     scripted.append({"op": "start", "task": task["task"]})
-if args.post_partial_read:
+if args.post_partial_read or args.post_evidence:
     scripted.append({"op": "read", "path": "guide.md", "first": 1, "last": 1})
+if args.post_evidence:
+    scripted.append({"op": "read", "path": "guide.md", "first": 2, "last": 2})
 
 
 def prepare(worker, history):
@@ -82,10 +85,19 @@ if scripted:
     assert len(receipts) == 1 and counters[0]["unknown"] == 0
     receipt, = receipts
     assert receipt["input"] > 0 and receipt["output"] > 0 and receipt == asdict(usage[0])
+    if args.post_evidence:
+        accepted, = reports[0]
+        report = accepted["report"]
+        assert re.search(r"\bguide\.md\s*(?::\s*2\b|[, ]+\s*line\s+2\b)", report, re.IGNORECASE), report
+        assert "Tuesday" in report, report
+        last = {"op": "submit", "digest": accepted["digest"]}
+    else:
+        assert reports == [[]], reports
+        last = {"op": "read"}
     assert stops == ["single_turn_complete"] and traces == [[
-        {"op": "start", "started": "guide"}, *[{"op": "read"}] * len(scripted),
-        {"op": "model", "error": "single_turn_complete"},
-    ]] and reports == [[]], traces
+        {"op": "start", "started": "guide"}, *[{"op": "read"}] * (len(scripted) - 1),
+        last, {"op": "model", "error": "single_turn_complete"},
+    ]], traces
     if args.post_partial_read:
         action, = model_actions
         assert action["path"] == "guide.md" and action["first"] <= 2 <= action["last"], action
