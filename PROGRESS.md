@@ -2,6 +2,8 @@
 
 Updated: 2026-11-25. Only facts that were checked are listed. Test counts come from local runs.
 
+2026-11-26 bounded pilot (separate local branch): see the [acceptance record](docs/nexus-pilot/evidence.md) for the wheel rehearsal, client checks, recovery evidence, and live gates. This pilot does not change the historical workflow described below.
+
 ## Done
 
 | Item | Evidence |

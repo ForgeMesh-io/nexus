@@ -1,0 +1,60 @@
+# Bounded Nexus pilot: acceptance record
+
+**Status (2026-11-26): local alpha rehearsed; live acceptance and public release pending.** This slice adds local text reports without replacing the existing GitHub-native workflow. Code, tests and license are local; no App installation, GitHub write, or release was performed.
+
+## What the evidence covers
+
+| Requirement | Evidence and result | Boundary |
+| --- | --- | --- |
+| Opt-in and actual task scope | **Local observed:** initialization and enrolment are operator-only; no work before opt-in. Discovery returns a maintainer-selected existing-issue number and exact revision. [Ledger tests](../../tests/test_pilot.py). | Repository consent and ownership are verified by the operator, not by the ledger; discovery does not scrape project needs. |
+| One active lease per owner, expiration, bounded intake and zero agents | **Local observed:** concurrent attempts at the same task or last active slot; identity aliases; expired lease fencing; task, enrolment and attempt ceilings; zero-budget configuration. [Ledger](../../tests/test_pilot.py), [CLI](../../tests/test_pilot_cli.py). | Capacity is operator-set at initialization; no dynamic budget allocator. One task per issue and exact retries do not detect semantic duplicates across issues or outside Nexus. |
+| Independent check and right to reject | **Local observed:** exact report digest, distinct enrolled owner, final review decision, maintainer preview and role-gated approval. [Ledger](../../tests/test_pilot.py), [CLI](../../tests/test_pilot_cli.py), [MCP](../../tests/test_pilot_mcp.py). | Human identities and evidence quality require independent human verification. No candidate code execution, PR, merge or automatic evaluation. |
+| Separate identities, minimal authority and retirement | **Local observed:** four participant operations on loopback, no operator routes or GitHub token needed; invalid origins, headers and inputs refused. In an opt-in Bubblewrap test the bridge runs as UID/GID 65534, cannot see the ledger, and completes the MCP workflow. Revocation and emergency stop persist. [HTTP](../../tests/test_pilot_http.py), [MCP](../../tests/test_pilot_mcp.py), [CLI](../../tests/test_pilot_cli.py). | Sandbox evidence is for the bridge, not arbitrary harness processes or remote deployments. Host isolation still has to be configured. Nexus cannot revoke pre-existing, unrelated GitHub rights. |
+| Backpressure, durability and audit | **Local observed:** with a slot occupied, 24 further claim requests across eight client workers receive `429 capacity`; the original lease and single claim audit event survive. Tests cover transaction rollback and restore into a new database with matching audit, revocation and stop. [HTTP](../../tests/test_pilot_http.py), [CLI](../../tests/test_pilot_cli.py), [ledger](../../tests/test_pilot.py). | Scripted contention, not a throughput or hostile-network benchmark. The local audit is not tamper-proof against an operator. Old backups must not resume remote publication. |
+| Authorized publication and reconciliation | **Local observed:** the installed CLIs and bridge completed discovery → reservation → report → review → preview → approval → one file receipt; repeat returned the same receipt; audit, revoke and stop verified. **Simulated:** GitHub HTTP double checks one POST on the authorized issue, refuses stale revisions or ineligible issues, reconciles lost responses with body/marker/bot ID, and never retries an ambiguous POST after restart, 429, or restore of a SQLite backup taken after the send started (mutation check: with reconciliation disabled the test fails on `no_dispatch` instead of `uncertain_dispatch`, and still no second POST occurs because the restored ledger issues no new grant). [CLI](../../tests/test_pilot_cli.py), [publisher tests](../../tests/test_pilot_github.py), [ledger](../../tests/test_pilot.py). | **Not run on GitHub.** API preflight and POST are not atomic; stopping cannot recall a granted send. No verified App permission grant or live reconciliation. |
+| Install, connect, apply client policies and remove | **Local observed:** wheel installed offline in a clean Python 3.12.9 environment; OpenCode v2.0.21 `/mcps` showed a connected server and an empty list after removing its config; in a full OpenCode agent turn driven by a scripted loopback OpenAI-compatible model, OpenCode called the real `nexus_discover` and `nexus_claim` tools (one `claimed` audit event), omitted `nexus_submit` from the model's tool list under a project `deny` rule, and refused the forced call with `No tool named "nexus_submit"` (no `submitted` event; removing the rule makes the test fail); Codex CLI 0.172.0 performed real `discover`/`claim` calls via app-server, excluded and refused `submit`, refused discovery after revocation and listed no server after config removal. [Host tests](../../tests/test_pilot_hosts.py); [setup and prompt](participants.md). | The OpenCode turn uses a scripted model, not a real LLM: it proves host wiring and policy enforcement, not that a model chooses the right tools or writes a useful report. Codex was exercised without any model turn. Manual drafting is documented, not an integration. ChatGPT, remote MCP, and unassisted onboarding are **not run**; A2A is not implemented. |
+| Preserve human work, detach without workflow migration | **Local observed:** existing policy configuration still checks, and no existing workflow, registry root, or license was changed. Read-only inventory and backups covered nine public Git mirrors, 62 remote branch/tag refs and paginated issues, PRs, comments and releases. | The mirrors and checked export checksums are not a complete GitHub restoration. They do not cover all local refs, uncommitted work or untracked files. Nothing was deleted. No production TUF ceremony or rollout was validated. |
+| Positive net value at the same budget | **Not run.** [Registered comparison design](research.md#three-arm-experiment-not-run) sets up solo, independent and coordinated agents and measures unique accepted outcomes, time, spend, interruptions and active human minutes. | Fixture tests and published results on different workloads do not measure Nexus's value. There is no claim of less maintainer work or a faster review. |
+
+## Reproduce the local checks
+
+Use Linux, Python 3.12+, the optional MCP extra, and an environment with pytest. To reproduce all acceptance cases, also have `ip`, `unshare`, `bwrap`, `sqlite3`, `curl`, OpenCode and Codex. The `uv --offline` steps require the build environment and wheels already in the local cache. Use a disposable Linux VM instead if unprivileged user namespaces are disabled. Run with synthetic inputs; no GitHub or model credentials are used.
+
+```sh
+# From the pilot checkout; use a new parent directory and a Python environment with setuptools >=77.
+repo=$PWD
+scratch=$(mktemp -d)
+uv build --wheel --offline --no-build-isolation --python "$BUILD_PYTHON" --out-dir "$scratch"
+uv venv --offline --python 3.12 "$scratch/venv"
+uv pip install --offline --python "$scratch/venv/bin/python" \
+  "$scratch/forgemesh_nexus-0.1.0a1-py3-none-any.whl[mcp]" pytest
+sha256sum "$scratch"/*.whl
+cd "$scratch"
+unshare --user --map-root-user --net bash -eu -c '
+  ip link set lo up
+  export NEXUS_TEST_HOSTS=1 NEXUS_TEST_BWRAP=1
+  ./venv/bin/python -m pytest --import-mode=importlib -q -rs -p no:cacheprovider "$1/tests"
+  ./venv/bin/python -I -m forgemesh check-config "$1"
+' bash "$repo"
+```
+
+Observed from outside the checkout: **137 passed in 31.33 s**, `OK: swarm 'nexus', 8 task(s)`. SHA-256 of the tested `forgemesh_nexus-0.1.0a1-py3-none-any.whl`: `751511c6142de2190317674dc19f5e0eda44d338077dff3289b136c426aa5026`. This identifies the tested build, not a signed release or promise of byte-identical builds. See the [operator rehearsal](operators.md#rehearse-without-github) for the installed console commands and the [participant guide](participants.md) for the MCP steps.
+
+For the historical check with a read-only mount and no network, use the pre-existing local test image:
+
+```sh
+docker run --rm --network none --read-only --tmpfs /tmp \
+  -e PYTHONDONTWRITEBYTECODE=1 -v "$PWD:/src:ro" -w /src \
+  sha256:d7f01b97472aec496d268246cc1376c4d2032b26288448b6a17c6b6b0409c255 \
+  sh -ec 'python --version; python -m pytest -q -rs -p no:cacheprovider; python -m forgemesh check-config .'
+```
+
+Baseline `97fbb27bb683ee41f851390aa6bdfc1e4d6fa424`: **98 passed**, configuration OK. Candidate in the image (Python 3.12.16): **130 passed, 6 skipped in 21.22 s**. Skips: missing `mcp` (the whole MCP module counts as one skip), `sqlite3`, `curl`, and three opt-in host tests. The clean-wheel run covered those paths separately. These are local runs, not published attestations.
+
+### OpenCode diagnostic limits
+
+With a fresh home and project containing `mcp.servers.nexus`, `opencode api --standalone GET /api/config` saw the entry but `GET /api/mcp` returned an empty catalog and its connect route returned `MCP server not found: nexus`. The shared-service probe timed out waiting for startup. The standalone TUI is the proven path for connection and removal in this build; the automation initially misread ANSI repaint fragments rather than a failed connection. An earlier provider probe reported `provider.no-route` for a catalog `openai` override and a closed socket for a custom provider pointed at an unused port; a custom `@opencode/ai/providers/openai-compatible` provider pointed at a live loopback stub works. In this build `opencode run --standalone` reached the model but never started the configured MCP server (no `nexus_*` tool listed, no MCP log line), so the acceptance turn drives the standalone TUI with `--auto --prompt`. Do not generalize these observations beyond v2.0.21.
+
+## Live gate (pending approval)
+
+Obtain explicit approval for one public repository, one existing test issue, one comment and the repository-scoped App permissions. Confirm consent, snapshot the pinned default-branch revision, and use a separate disposable pilot ledger. Record the preflight, one bot-authored receipt verified by an independent read, the read-only retry/reconciliation outcome, a stale/withdrawn refusal, and final stop and credential removal. No cleanup by deletion is implied. Do not expose the loopback participant API remotely to run this gate. Judge whether to broaden the deployment only after actual client onboarding, maintainer feedback and the budget-matched comparison.

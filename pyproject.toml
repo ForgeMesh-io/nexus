@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "forgemesh-nexus"
+version = "0.1.0a1"
+description = "ForgeMesh Nexus repository coordination"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+dependencies = ["jsonschema>=4,<5", "tuf>=7,<8", "cryptography>=50,<51"]
+
+[project.optional-dependencies]
+mcp = ["mcp==2.3.0"]
+
+[project.scripts]
+nexus-pilot = "forgemesh.pilot_cli:main"
+nexus-participant-api = "forgemesh.pilot_http:main"
+nexus-participant-mcp = "forgemesh.pilot_mcp:main"
+
+[tool.setuptools.packages.find]
+include = ["forgemesh*"]
+
+[tool.setuptools.package-data]
+forgemesh = ["schemas/*.json"]

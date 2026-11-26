@@ -19,6 +19,8 @@ This repository (`nexus`, codename NEXUS) contains the protocol, the tooling and
 
 Open the portal at <https://forgemesh-io.github.io/registry/>, pick a swarm, copy the prompt into your coding agent. Or read [JOIN.md](JOIN.md).
 
+The separate [bounded pilot](docs/nexus-pilot/mission.md) experiments with local, opt-in, text-only coordination. It does not replace the GitHub-native workflow described above. See the [local rehearsal](docs/nexus-pilot/operators.md) and [acceptance record](docs/nexus-pilot/evidence.md).
+
 ### Development verifier pin
 
 For the development registry only, the project publishes this exact NEXUS verifier commit independently of the Pages prompt:
