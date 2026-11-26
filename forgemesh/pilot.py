@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS actors (
 CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY, issue INTEGER UNIQUE NOT NULL, base TEXT NOT NULL, title TEXT NOT NULL,
     actor TEXT REFERENCES actors(id), expires INTEGER, attempt INTEGER NOT NULL DEFAULT 0,
-    digest TEXT, report TEXT, reviewer TEXT REFERENCES actors(id), verdict TEXT, evidence TEXT
+    digest TEXT, report TEXT, reviewer TEXT REFERENCES actors(id), verdict TEXT, evidence TEXT,
+    paths TEXT NOT NULL DEFAULT '[]'
 );
 CREATE TABLE IF NOT EXISTS audit (
     id INTEGER PRIMARY KEY, at INTEGER NOT NULL, event TEXT NOT NULL,
@@ -41,6 +42,16 @@ CREATE TABLE IF NOT EXISTS publications (
     receipt INTEGER UNIQUE
 );
 """
+
+
+PATH = r"[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*/?"
+
+
+def valid_paths(paths, limit):
+    """Repository-relative files, or directories ending in '/'; shared with the consent file check."""
+    return (isinstance(paths, list) and len(paths) <= limit and len(set(paths)) == len(paths) and all(
+        isinstance(path, str) and len(path) <= 256 and re.fullmatch(PATH, path)
+        and not {".", ".."} & set(path.rstrip("/").split("/")) for path in paths))
 
 
 class PilotError(Exception):
@@ -148,22 +159,34 @@ class Pilot:
             self._event(db, "enrolled", actor=actor, owner=owner, role=role)
         return token
 
-    def add_task(self, task: str, issue: int, base: str, title: str):
-        """Operator-only; the selected issue and exact revision are the approved scope."""
+    def upgrade(self):
+        """Operator-only, idempotent; run after installing a newer version on an existing ledger."""
+        with self._db(write=True) as db:
+            if "paths" not in [column["name"] for column in db.execute("PRAGMA table_info(tasks)")]:
+                db.execute("ALTER TABLE tasks ADD COLUMN paths TEXT NOT NULL DEFAULT '[]'")
+                self._event(db, "upgraded", added="tasks.paths")
+
+    def add_task(self, task: str, issue: int, base: str, title: str, paths: list = ()):
+        """Operator-only; the issue, exact revision and listed paths are the approved scope.
+
+        Without paths, any later change to the repository makes the report stale."""
         _id(task)
         _match(base, r"[0-9a-f]{40}")
         _text(title, 256)
+        paths = list(paths) if isinstance(paths, tuple) else paths
+        if not valid_paths(paths, 16):
+            raise PilotError("invalid_input")
         if type(issue) is not int or not 1 <= issue <= 2**31 - 1:
             raise PilotError("invalid_input")
         with self._db(write=True) as db:
             self._settings(db)
             if db.execute("SELECT count(*) FROM tasks").fetchone()[0] >= MAX_TASKS:
                 raise PilotError("capacity")
-            created = db.execute("INSERT OR IGNORE INTO tasks(id,issue,base,title) VALUES(?,?,?,?)",
-                                 (task, issue, base, title))
+            created = db.execute("INSERT OR IGNORE INTO tasks(id,issue,base,title,paths) VALUES(?,?,?,?,?)",
+                                 (task, issue, base, title, json.dumps(paths)))
             if not created.rowcount:
                 raise PilotError("conflict")
-            self._event(db, "task_added", task=task, issue=issue, base=base)
+            self._event(db, "task_added", task=task, issue=issue, base=base, paths=paths)
 
     def discover(self, token: str) -> dict:
         with self._db() as db:
@@ -171,15 +194,16 @@ class Pilot:
             settings = self._settings(db)
             tasks = []
             if actor["role"] == "contributor" and settings["active_limit"]:
-                tasks = db.execute("""SELECT id,issue,base,title FROM tasks
+                tasks = db.execute("""SELECT id,issue,base,title,paths FROM tasks
                     WHERE digest IS NULL AND attempt < ? AND (expires IS NULL OR expires <= ?)
                     ORDER BY id""", (MAX_ATTEMPTS, int(self.clock())))
             elif actor["role"] == "reviewer":
-                tasks = db.execute("""SELECT t.id,issue,base,title,digest,report FROM tasks AS t
+                tasks = db.execute("""SELECT t.id,issue,base,title,paths,digest,report FROM tasks AS t
                     JOIN actors AS a ON t.actor=a.id
                     WHERE digest IS NOT NULL AND verdict IS NULL AND a.owner != ? AND a.revoked=0
                     ORDER BY t.id""", (actor["owner"],))
-            return {"repository": settings["repository"], "tasks": [dict(task) for task in tasks]}
+            return {"repository": settings["repository"],
+                    "tasks": [dict(task) | {"paths": json.loads(task["paths"])} for task in tasks]}
 
     @staticmethod
     def _task(db, task):
@@ -320,9 +344,13 @@ class Pilot:
                 db.execute("UPDATE tasks SET verdict='declined' WHERE id=?", (task,))
                 self._event(db, "declined", maintainer["id"], task, digest=digest)
 
-    def begin_dispatch(self, token: str, task: str, current_base: str) -> dict | None:
-        """Grant a single send attempt; an absent receipt after this point is ambiguous."""
+    def begin_dispatch(self, token: str, task: str, current_base: str, head: str | None = None) -> dict | None:
+        """Grant a single send attempt; an absent receipt after this point is ambiguous.
+
+        `head` is a newer default-branch commit the publisher proved leaves the task's paths unchanged."""
         _match(current_base, r"[0-9a-f]{40}")
+        head = current_base if head is None else head
+        _match(head, r"[0-9a-f]{40}")
         with self._db(write=True) as db:
             publisher = self._actor(db, token, "publisher")
             settings = self._settings(db)
@@ -334,7 +362,7 @@ class Pilot:
             if row["base"] != current_base:
                 raise PilotError("stale_base")
             db.execute("UPDATE publications SET started=1 WHERE task=?", (task,))
-            self._event(db, "dispatch_started", publisher["id"], task, marker=intent["marker"])
+            self._event(db, "dispatch_started", publisher["id"], task, marker=intent["marker"], head=head)
             return self._publication(settings, row, intent)
 
     @staticmethod
@@ -352,7 +380,7 @@ class Pilot:
             if intent:
                 return self._publication(settings, row, intent)
 
-    def pending_target(self, token: str, task: str) -> tuple[str, int] | None:
+    def pending_target(self, token: str, task: str) -> dict | None:
         with self._db() as db:
             self._actor(db, token, "publisher")
             settings = self._settings(db)
@@ -360,7 +388,8 @@ class Pilot:
             intent = db.execute("SELECT * FROM publications WHERE task=? AND started=0", (task,)).fetchone()
             if intent:
                 self._check_active(db, row["actor"], row["reviewer"], intent["approver"])
-                return settings["repository"], row["issue"]
+                return {"repository": settings["repository"], "issue": row["issue"], "base": row["base"],
+                        "paths": json.loads(row["paths"])}
 
     def record_publication(self, token: str, marker: str, receipt: int) -> int:
         """Record only an independently observed receipt, including after a stop."""

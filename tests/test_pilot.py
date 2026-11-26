@@ -56,7 +56,7 @@ def test_explicit_opt_in_and_discovery_returns_pinned_work(workspace, tmp_path):
         ledger.discover("forged")
     assert ledger.discover(tokens["writer"]) == {
         "repository": "example/project", "tasks": [
-            {"id": "guide", "issue": 10, "base": BASE, "title": "Check the recipe"},
+            {"id": "guide", "issue": 10, "base": BASE, "title": "Check the recipe", "paths": []},
         ],
     }
     assert ledger.discover(tokens["reviewer"])["tasks"] == []
@@ -297,3 +297,25 @@ def test_maintainer_decline_is_final_and_releases_the_slot(workspace):
         ledger.authorize(tokens["maintainer"], "guide", digest)
     assert ledger.claim(third, "third") == 1
     assert [row["event"] for row in ledger.audit()].count("declined") == 1
+
+
+def test_tasks_carry_the_paths_contributors_may_read(workspace):
+    ledger, _, tokens, _ = workspace
+    ledger.add_task("scoped", 20, BASE, "Scoped", ["docs/", "README.md"])
+    tasks = {task["id"]: task for task in ledger.discover(tokens["writer"])["tasks"]}
+    assert tasks["scoped"]["paths"] == ["docs/", "README.md"]
+    assert tasks["guide"]["paths"] == []
+    for paths in (["../etc/passwd"], ["/etc"], ["docs/../x"], ["a//b"], [""], "docs/", ["x"] * 17, ["a\\b"]):
+        with pytest.raises(pilot.PilotError, match="invalid_input"):
+            ledger.add_task("bad", 21, BASE, "Bad", paths)
+
+
+def test_upgrade_adds_task_paths_to_an_older_ledger_once(workspace):
+    ledger, path, tokens, _ = workspace
+    with sqlite3.connect(path) as db:
+        db.execute("ALTER TABLE tasks DROP COLUMN paths")
+    ledger.upgrade()
+    ledger.upgrade()
+    ledger.add_task("scoped", 20, BASE, "Scoped", ["docs/"])
+    assert [task["paths"] for task in ledger.discover(tokens["writer"])["tasks"]] == [[], ["docs/"]]
+    assert [row["event"] for row in ledger.audit()].count("upgraded") == 1

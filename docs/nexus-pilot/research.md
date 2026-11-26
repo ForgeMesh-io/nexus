@@ -48,3 +48,20 @@ NotebookLM answered that pending reviews should count as WIP. It quoted Little's
 **Decision:** `active_limit` now counts open leases plus non-withdrawn reports that await review or the maintainer's decision. A rejection, a maintainer `decline`, an authorization or a revocation releases the slot. The limit is now a bound on the work waiting for humans. Setting it is the maintainer's choice, not a derived optimum.
 
 **H4 (new):** with that bound, the number of reports waiting for a human never exceeds `active_limit`, and the share of accepted reports does not fall compared with an unbounded queue at equal budget. The first part is enforced by tests. The second is **not run**; it belongs to the three-arm experiment.
+
+## Round 3 — 2026-11-26: where does a project declare consent?
+
+Question: what should prove that a project agreed to Nexus, and which issues and files it covers, so that a maintainer can withdraw without the operator?
+
+NotebookLM compared three sources of consent: a committed configuration file, issue labels, and the App installation alone. It reported that labels can be changed with the triage role and that installation scope is repository-wide. I checked these points against primary documentation rather than against its citations:
+
+| Source | What it supports | What it does not establish |
+| --- | --- | --- |
+| [GitHub repository roles](https://docs.github.com/en/organizations/managing-user-access-to-your-organizations-repositories/managing-repository-roles/repository-roles-for-an-organization) (fetched) | Triage is "recommended for contributors who need to proactively manage issues, discussions, and pull requests without write access" and can apply labels; pushing needs Write. A label is a weaker signal than a commit. | How projects actually assign triage. |
+| [GitHub compare two commits](https://docs.github.com/en/rest/commits/commits#compare-two-commits) (fetched) | Without pagination, the commit list stops at 250 commits; changed files stop at 300 for the whole comparison; renames carry `previous_filename`. A truncated response must be read as "possibly changed". | Semantic conflicts: a file outside the task's paths can still change what the report means. |
+| [GitHub permissions for Apps](https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps) (round 1) | App permissions apply to the whole repository, not to an issue or path. | — |
+| Dependabot and Renovate (`.github/dependabot.yml`, `renovate.json`; NotebookLM, not re-verified) | Precedent for opting in through a file on the default branch. | That their users treat the file as consent rather than configuration. |
+
+**Contradictory point kept:** the path rule only detects textual changes. A report about `CONTRIBUTING.md` can become wrong because of a change to a build script it does not name. Listing narrow paths reduces false staleness but accepts this risk. The fallback without paths stays strict.
+
+**Decision:** [ADR 002](adr-002-repository-consent.md). **H5 (new):** checking a maintainer-owned file at the exact publication commit blocks every publication not covered by current consent, and makes no write. This is enforced by tests with a GitHub double. It is **not yet observed** live: it needs the App installation and the file merged on the fork.

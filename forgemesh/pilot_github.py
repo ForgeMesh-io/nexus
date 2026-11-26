@@ -1,12 +1,38 @@
 """Publisher for already approved text reports, separate from the participant API."""
 
+import base64
+import binascii
 import http.client
 import json
 import re
+from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
-from .pilot import PilotError
+from .pilot import PilotError, valid_paths
+
+CONSENT_FILE = ".github/nexus.json"
+
+
+def _covers(scope, path):
+    return scope == path or (scope.endswith("/") and path.startswith(scope))
+
+
+def check_consent(raw, issue, paths):
+    """The maintainer-owned file must name this issue and cover every path the task reads."""
+    try:
+        consent = json.loads(raw)
+    except (ValueError, RecursionError):
+        raise PilotError("invalid_consent") from None
+    if (not isinstance(consent, dict) or set(consent) != {"nexus", "issues", "read"} or consent["nexus"] != 1
+            or type(consent["nexus"]) is not int or not isinstance(consent["issues"], list)
+            or len(consent["issues"]) > 100 or len(set(consent["issues"])) != len(consent["issues"])
+            or not all(type(n) is int and 1 <= n <= 2**31 - 1 for n in consent["issues"])
+            or not valid_paths(consent["read"], 64)):
+        raise PilotError("invalid_consent")
+    if issue not in consent["issues"] or not all(
+            any(_covers(scope, path) for scope in consent["read"]) for path in paths):
+        raise PilotError("no_consent")
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -24,7 +50,7 @@ class GitHubPublisher:
         self._bot_user_id = bot_user_id
         self._open = opener or build_opener(ProxyHandler({}), _NoRedirect()).open
 
-    def _request(self, path, *, body=None):
+    def _request(self, path, *, body=None, missing=False):
         data = None if body is None else json.dumps({"body": body}).encode("utf-8")
         request = Request("https://api.github.com" + path, data=data, headers={
             "Authorization": "Bearer " + self._token,
@@ -40,6 +66,10 @@ class GitHubPublisher:
             if len(raw) > 2_097_152:
                 raise ValueError("response too large")
             return json.loads(raw)
+        except HTTPError as exc:
+            if missing and exc.code == 404:
+                return None
+            raise PilotError(error) from None
         except (OSError, http.client.HTTPException, ValueError, RecursionError):
             raise PilotError(error) from None
 
@@ -62,7 +92,7 @@ class GitHubPublisher:
         target = ledger.pending_target(token, task)
         if target is None:
             raise PilotError("no_dispatch")
-        repository, issue = target
+        repository, issue = target["repository"], target["issue"]
         path = f"/repos/{repository}"
         repo = self._request(path)
         if (not isinstance(repo, dict) or repo.get("private") is not False
@@ -77,7 +107,10 @@ class GitHubPublisher:
         head = self._request(f'{path}/commits/{quote(repo["default_branch"], safe="")}')
         if not isinstance(head, dict) or not re.fullmatch(r"[0-9a-f]{40}", str(head.get("sha", ""))):
             raise PilotError("github_unavailable")
-        intent = ledger.begin_dispatch(token, task, head["sha"])
+        head = head["sha"]
+        self._consent(path, head, issue, target["paths"])
+        base = target["base"] if head == target["base"] or self._unchanged(path, target, head) else head
+        intent = ledger.begin_dispatch(token, task, base, head)
         if intent is None:
             raise PilotError("no_dispatch")
         body = self._body(intent)
@@ -85,6 +118,38 @@ class GitHubPublisher:
         if receipt is None:
             raise PilotError("uncertain_dispatch")
         return ledger.record_publication(token, intent["marker"], receipt)
+
+    def _consent(self, path, head, issue, paths):
+        file = self._request(f"{path}/contents/{CONSENT_FILE}?ref={head}", missing=True)
+        if file is None:
+            raise PilotError("no_consent")
+        if not isinstance(file, dict) or file.get("type") != "file" or file.get("encoding") != "base64":
+            raise PilotError("invalid_consent")
+        try:
+            raw = base64.b64decode(str(file.get("content", "")).replace("\n", ""), validate=True)
+        except (binascii.Error, ValueError):
+            raise PilotError("invalid_consent") from None
+        if len(raw) > 65_536:
+            raise PilotError("invalid_consent")
+        check_consent(raw, issue, paths)
+
+    def _unchanged(self, path, target, head):
+        """A moved branch keeps the report current only if no file the task reads changed."""
+        diff = self._request(f'{path}/compare/{target["base"]}...{head}')
+        # GitHub truncates compare results (300 files, 250 commits); treat a possibly partial list as changed.
+        if (not isinstance(diff, dict) or diff.get("status") != "ahead" or not isinstance(diff.get("files"), list)
+                or len(diff["files"]) >= 300 or type(diff.get("total_commits")) is not int
+                or not 1 <= diff["total_commits"] < 250):
+            return False
+        # The consent file is re-read at `head`; a task without paths tolerates no other change.
+        scopes = target["paths"] or [""]
+        for changed in diff["files"]:
+            names = [changed.get(key) for key in ("filename", "previous_filename")] if isinstance(changed, dict) else [None]
+            if not isinstance(names[0], str) or any(
+                    isinstance(name, str) and name != CONSENT_FILE
+                    and any(scope == "" or _covers(scope, name) for scope in scopes) for name in names):
+                return False
+        return True
 
     def _reconcile(self, ledger, token, intent):
         path = f'/repos/{intent["repository"]}/issues/{intent["issue"]}/comments'

@@ -1,3 +1,4 @@
+import base64
 import io
 import json
 from urllib.error import HTTPError, URLError
@@ -12,6 +13,7 @@ REPORT = "The example omits a step.\n@team do not notify"
 ISSUE = "/repos/example/project/issues/7"
 HEAD = "/repos/example/project/commits/main"
 COMMENTS = ISSUE + "/comments"
+CONSENT = {"nexus": 1, "issues": [7], "read": ["docs/", "README.md"]}
 
 
 @pytest.fixture
@@ -23,7 +25,7 @@ def approved(tmp_path):
     reviewer = ledger.enroll("reviewer", "bob", "reviewer")
     approver = ledger.enroll("approver", "carol", "maintainer")
     publisher = ledger.enroll("publisher", "worker", "publisher")
-    ledger.add_task("guide", 7, BASE, "Check the guide")
+    ledger.add_task("guide", 7, BASE, "Check the guide", ["docs/guide.md", "README.md"])
     digest = ledger.submit(author, "guide", ledger.claim(author, "guide"), REPORT)
     ledger.review(reviewer, "guide", digest, "pass", "Checked the pinned version")
     marker = ledger.authorize(approver, "guide", digest)
@@ -31,8 +33,12 @@ def approved(tmp_path):
 
 
 class API:
-    def __init__(self, *, base=BASE, lose_response=False, issue=None):
+    def __init__(self, *, base=BASE, lose_response=False, issue=None, consent=CONSENT,
+                 compare=None):
         self.base = base
+        self.compare = {"status": "ahead", "total_commits": 1, "files": [{"filename": "docs/guide.md"}]} \
+            if compare is None else compare
+        self.consent = consent
         self.issue = {"number": 7, "state": "open"} if issue is None else issue
         self.lose_response = lose_response
         self.comments = []
@@ -57,6 +63,13 @@ class API:
             payload = self.issue
         elif path == HEAD:
             payload = {"sha": self.base}
+        elif path == f"/repos/example/project/compare/{BASE}...{self.base}":
+            payload = self.compare
+        elif path == f"/repos/example/project/contents/.github/nexus.json?ref={self.base}":
+            if self.consent is None:
+                raise HTTPError(request.full_url, 404, "Not Found", {}, io.BytesIO(b"{}"))
+            raw = self.consent if isinstance(self.consent, bytes) else json.dumps(self.consent).encode()
+            payload = {"type": "file", "encoding": "base64", "content": base64.encodebytes(raw).decode()}
         else:
             assert path == COMMENTS + "?per_page=100&page=1"
             payload = self.comments
@@ -181,3 +194,67 @@ def test_operator_cli_publishes_with_env_token_once_and_never_echoes_it(approved
     assert run(**request) == (0, 123)
     assert run(**request) == (0, 123)
     assert [path for method, path in api.requests if method == "POST"] == [COMMENTS]
+
+
+@pytest.mark.parametrize("consent,error", [
+    (None, "no_consent"),
+    ({"nexus": 1, "issues": [], "read": ["docs/", "README.md"]}, "no_consent"),
+    ({"nexus": 1, "issues": [7], "read": ["docs/"]}, "no_consent"),
+    ({"nexus": 1, "issues": [7], "read": ["doc"]}, "no_consent"),
+    ({"nexus": 2, "issues": [7], "read": ["docs/"]}, "invalid_consent"),
+    ({"nexus": 1, "issues": [7], "read": ["../docs/"]}, "invalid_consent"),
+    ({"nexus": 1, "issues": [7, 7], "read": ["docs/"]}, "invalid_consent"),
+    ({"nexus": 1, "issues": [7], "read": ["docs/"], "extra": 1}, "invalid_consent"),
+    (b"not json", "invalid_consent"),
+])
+def test_github_publishes_only_with_current_maintainer_consent(approved, consent, error):
+    _, ledger, token, _, _ = approved
+    api = API(consent=consent)
+    with pytest.raises(PilotError, match=error):
+        gateway(api).publish(ledger, token, "guide")
+    assert all(method == "GET" for method, _ in api.requests)
+    assert "dispatch_started" not in [event["event"] for event in ledger.audit()]
+    # Restoring consent in the repository lets the same authorization proceed once.
+    api.consent = CONSENT
+    assert gateway(api).publish(ledger, token, "guide") == 123
+
+
+@pytest.mark.parametrize("compare,result", [
+    ({"status": "ahead", "total_commits": 2, "files": [{"filename": "src/x.c"}, {"filename": ".github/nexus.json"}]}, 123),
+    ({"status": "ahead", "total_commits": 1, "files": [{"filename": "docs/new.md"}]}, 123),
+    ({"status": "ahead", "total_commits": 1, "files": [{"filename": "docs/guide.md"}]}, "stale_base"),
+    ({"status": "ahead", "total_commits": 1, "files": [{"filename": "x", "previous_filename": "README.md"}]}, "stale_base"),
+    ({"status": "diverged", "total_commits": 1, "files": [{"filename": "src/x.c"}]}, "stale_base"),
+    ({"status": "ahead", "total_commits": 1, "files": [{"filename": f"f{n}"} for n in range(300)]}, "stale_base"),
+    ({"status": "ahead", "total_commits": 250, "files": [{"filename": "src/x.c"}]}, "stale_base"),
+    ({"status": "ahead", "total_commits": 1}, "stale_base"),
+])
+def test_moved_head_is_stale_only_when_files_in_scope_changed(approved, compare, result):
+    _, ledger, token, _, _ = approved
+    api = API(base="c" * 40, compare=compare)
+    if result == 123:
+        assert gateway(api).publish(ledger, token, "guide") == 123
+        started = [event for event in ledger.audit() if event["event"] == "dispatch_started"]
+        assert started[0]["details"]["head"] == "c" * 40
+    else:
+        with pytest.raises(PilotError, match=result):
+            gateway(api).publish(ledger, token, "guide")
+        assert all(method == "GET" for method, _ in api.requests)
+
+
+def test_adding_only_the_consent_file_keeps_an_unscoped_report_current(tmp_path):
+    ledger = Pilot(tmp_path / "pilot.db")
+    ledger.initialize("example/project")
+    author = ledger.enroll("author", "alice", "contributor")
+    reviewer = ledger.enroll("reviewer", "bob", "reviewer")
+    approver = ledger.enroll("approver", "carol", "maintainer")
+    publisher = ledger.enroll("publisher", "worker", "publisher")
+    ledger.add_task("guide", 7, BASE, "Check the guide")
+    digest = ledger.submit(author, "guide", ledger.claim(author, "guide"), REPORT)
+    ledger.review(reviewer, "guide", digest, "pass", "Checked")
+    ledger.authorize(approver, "guide", digest)
+    other = {"status": "ahead", "total_commits": 2, "files": [{"filename": ".github/nexus.json"}, {"filename": "x"}]}
+    with pytest.raises(PilotError, match="stale_base"):
+        gateway(API(base="c" * 40, compare=other)).publish(ledger, publisher, "guide")
+    only = {"status": "ahead", "total_commits": 1, "files": [{"filename": ".github/nexus.json"}]}
+    assert gateway(API(base="c" * 40, compare=only)).publish(ledger, publisher, "guide") == 123

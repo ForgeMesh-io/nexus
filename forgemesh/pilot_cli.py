@@ -70,7 +70,7 @@ def main():
         "discover": ledger.discover, "claim": ledger.claim, "submit": ledger.submit,
         "review": ledger.review, "inspect-report": ledger.inspect_report,
         "authorize": ledger.authorize, "decline": ledger.decline, "revoke": ledger.revoke,
-        "stop": ledger.stop, "audit": ledger.audit,
+        "stop": ledger.stop, "audit": ledger.audit, "upgrade": ledger.upgrade,
         "publish-local": lambda **payload: publish_local(ledger, **payload),
         "publish-github": lambda **payload: publish_github(ledger, **payload),
     }

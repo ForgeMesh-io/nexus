@@ -32,9 +32,11 @@ JSON
 # active_limit counts open leases plus reports waiting for review or for your decision.
 # New claims get `capacity` until you authorize, decline, or a reviewer rejects one.
 nexus-pilot "$db" add-task <<'JSON'
-{"task":"guide","issue":7,"base":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","title":"Check the guide"}
+{"task":"guide","issue":7,"base":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","title":"Check the guide","paths":["docs/guide.md"]}
 JSON
 ```
+
+`paths` (optional, at most 16) lists the files, or directories ending in `/`, that the task relies on. Contributors see them in `discover`. If the default branch moves, the report stays current only when none of these paths changed. Without `paths`, any change except the consent file makes it stale. After installing a newer version on an existing ledger, run `nexus-pilot "$db" upgrade` once with `{}`.
 
 `nexus-pilot "$db" enroll` takes one JSON object on standard input and returns one secret as a JSON string. Enrol these four roles independently, using the appropriate `actor`, `owner` and `role`. For example:
 
@@ -71,7 +73,7 @@ Do not use `publish-local` on a ledger intended for GitHub. Both publishers cons
 
 There is a tested Python publisher adapter, but no enabled GitHub deployment. Before any live run, obtain approval for an explicit organization, repository, existing test issue and permission grant. Select only that repository in the App installation and in the short-lived installation token; use Issues **write**, read-only metadata and only the read access needed for preflight. Verify exact permissions against [GitHub's endpoint permissions](https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps). GitHub does not scope Issues write to a single comment; the adapter constrains the route in code. Keep the App private key and installation token outside the coordinator and all harnesses. Record the bot's numeric user ID. Do not substitute a personal access token.
 
-The adapter checks a public repository, an open unlocked issue and the current default-branch SHA before dispatch. Remote state can still change between preflight and POST. A stop or revoke blocks new grants, not a send already granted. Once a grant exists, a repeated call performs a bounded read-only reconciliation; it cannot send again, even on HTTP 429 or missing receipt. If there is no exact match for the body, marker and bot ID, keep the event unresolved and the quota spent. Never erase a grant to force a retry. Verify and record the intended live App setup before enabling any delivery; synthetic file receipts and HTTP doubles are not evidence of GitHub acceptance.
+The project must consent in its own repository: a file `.github/nexus.json` on the default branch, for example `{"nexus": 1, "issues": [7], "read": ["docs/"]}`. It lists the issues Nexus may comment on and the paths tasks may rely on; see [ADR 002](adr-002-repository-consent.md). Unknown keys are refused. The adapter checks a public repository, an open unlocked issue, the current default-branch SHA and this file at that SHA before dispatch. It returns `no_consent` or `invalid_consent` without writing and without spending the grant. Deleting the file, or removing the issue from it, withdraws consent for later publications. Remote state can still change between preflight and POST. A stop or revoke blocks new grants, not a send already granted. Once a grant exists, a repeated call performs a bounded read-only reconciliation; it cannot send again, even on HTTP 429 or missing receipt. If there is no exact match for the body, marker and bot ID, keep the event unresolved and the quota spent. Never erase a grant to force a retry. Verify and record the intended live App setup before enabling any delivery; synthetic file receipts and HTTP doubles are not evidence of GitHub acceptance.
 
 From the trusted operator environment, run `nexus-pilot "$db" publish-github` with the installation token in `NEXUS_GITHUB_TOKEN` only (piped from your token minting step, never typed or stored). Send `{"token":"PUBLISHER","task":"TASK","bot_user_id":BOT_ID}` on standard input. It returns the GitHub comment ID. Repeat the same command to reconcile; it never posts twice.
 
