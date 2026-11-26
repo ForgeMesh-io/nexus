@@ -246,3 +246,54 @@ def test_reopening_after_dispatch_cannot_regrant_send_and_records_receipt(worksp
     with pytest.raises(pilot.PilotError, match="conflict"):
         reopened.record_publication(publisher, marker, 43)
     assert [entry["event"] for entry in reopened.audit()].count("published") == 1
+
+
+def test_reports_waiting_for_a_human_hold_the_admission_slot(workspace):
+    ledger, _, tokens, _ = workspace
+    ledger.add_task("other", 11, BASE, "Other work")
+    ledger.add_task("third", 12, BASE, "More work")
+    digest = ledger.submit(tokens["writer"], "guide", ledger.claim(tokens["writer"], "guide"), REPORT)
+    ledger.claim(tokens["peer"], "other")
+    third = ledger.enroll("third", "eve", "contributor")
+    # Awaiting review, then awaiting the maintainer: both still count against the limit of 2.
+    with pytest.raises(pilot.PilotError, match="capacity"):
+        ledger.claim(third, "third")
+    ledger.review(tokens["reviewer"], "guide", digest, "pass", "Checked")
+    with pytest.raises(pilot.PilotError, match="capacity"):
+        ledger.claim(third, "third")
+    ledger.authorize(tokens["maintainer"], "guide", digest)
+    assert ledger.claim(third, "third") == 1
+
+
+def test_rejected_or_withdrawn_reports_release_the_admission_slot(workspace):
+    ledger, _, tokens, _ = workspace
+    ledger.add_task("other", 11, BASE, "Other work")
+    ledger.add_task("third", 12, BASE, "More work")
+    digest = ledger.submit(tokens["writer"], "guide", ledger.claim(tokens["writer"], "guide"), REPORT)
+    ledger.submit(tokens["peer"], "other", ledger.claim(tokens["peer"], "other"), REPORT)
+    third = ledger.enroll("third", "eve", "contributor")
+    with pytest.raises(pilot.PilotError, match="capacity"):
+        ledger.claim(third, "third")
+    ledger.review(tokens["reviewer"], "guide", digest, "reject", "Wrong")
+    ledger.revoke(tokens["maintainer"], "peer")
+    assert ledger.claim(third, "third") == 1
+
+
+def test_maintainer_decline_is_final_and_releases_the_slot(workspace):
+    ledger, _, tokens, _ = workspace
+    ledger.add_task("other", 11, BASE, "Other work")
+    ledger.add_task("third", 12, BASE, "More work")
+    digest = ledger.submit(tokens["writer"], "guide", ledger.claim(tokens["writer"], "guide"), REPORT)
+    ledger.review(tokens["reviewer"], "guide", digest, "pass", "Checked")
+    ledger.claim(tokens["peer"], "other")
+    third = ledger.enroll("third", "eve", "contributor")
+    with pytest.raises(pilot.PilotError, match="stale_digest"):
+        ledger.decline(tokens["maintainer"], "guide", "0" * 64)
+    with pytest.raises(pilot.PilotError, match="unauthorized"):
+        ledger.decline(tokens["reviewer"], "guide", digest)
+    ledger.decline(tokens["maintainer"], "guide", digest)
+    ledger.decline(tokens["maintainer"], "guide", digest)
+    with pytest.raises(pilot.PilotError, match="not_validated"):
+        ledger.authorize(tokens["maintainer"], "guide", digest)
+    assert ledger.claim(third, "third") == 1
+    assert [row["event"] for row in ledger.audit()].count("declined") == 1

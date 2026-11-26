@@ -206,7 +206,11 @@ class Pilot:
             active, owned = db.execute("""SELECT count(*), sum(a.owner = ?) FROM tasks AS t
                 JOIN actors AS a ON t.actor=a.id WHERE t.digest IS NULL AND t.expires > ?""",
                 (actor["owner"], now)).fetchone()
-            if owned or active >= settings["active_limit"]:
+            # Reports still waiting for a human decision hold their slot, so intake stops when reviewers fall behind.
+            waiting = db.execute("""SELECT count(*) FROM tasks AS t JOIN actors AS a ON t.actor=a.id
+                WHERE t.digest IS NOT NULL AND a.revoked=0 AND (t.verdict IS NULL OR t.verdict='pass')
+                AND t.id NOT IN (SELECT task FROM publications)""").fetchone()[0]
+            if owned or active + waiting >= settings["active_limit"]:
                 raise PilotError("capacity")
             attempt = row["attempt"] + 1
             expires = now + settings["lease_seconds"]
@@ -251,6 +255,8 @@ class Pilot:
                 raise PilotError("independence")
             if author["revoked"]:
                 raise PilotError("withdrawn")
+            if row["verdict"] == "declined":
+                raise PilotError("declined")
             if row["reviewer"] is None:
                 db.execute("UPDATE tasks SET reviewer=?,verdict=?,evidence=? WHERE id=?",
                            (reviewer["id"], verdict, evidence, task))
@@ -298,6 +304,21 @@ class Pilot:
                        (task, marker, approver["id"]))
             self._event(db, "authorized", approver["id"], task, digest=digest, marker=marker)
             return marker
+
+    def decline(self, token: str, task: str, digest: str):
+        """Maintainer refusal of an exact report; the reviewer's verdict stays in the audit."""
+        _match(digest, r"[0-9a-f]{64}")
+        with self._db(write=True) as db:
+            maintainer = self._actor(db, token, "maintainer")
+            self._settings(db, allow_stopped=True)
+            row = self._task(db, task)
+            if row["digest"] != digest:
+                raise PilotError("stale_digest")
+            if db.execute("SELECT 1 FROM publications WHERE task=?", (task,)).fetchone():
+                raise PilotError("conflict")
+            if row["verdict"] != "declined":
+                db.execute("UPDATE tasks SET verdict='declined' WHERE id=?", (task,))
+                self._event(db, "declined", maintainer["id"], task, digest=digest)
 
     def begin_dispatch(self, token: str, task: str, current_base: str) -> dict | None:
         """Grant a single send attempt; an absent receipt after this point is ambiguous."""

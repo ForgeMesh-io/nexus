@@ -29,6 +29,8 @@ mkdir "$state/receipts"
 nexus-pilot "$db" initialize <<'JSON'
 {"repository":"example/project","active_limit":1,"lease_seconds":900,"publication_limit":1}
 JSON
+# active_limit counts open leases plus reports waiting for review or for your decision.
+# New claims get `capacity` until you authorize, decline, or a reviewer rejects one.
 nexus-pilot "$db" add-task <<'JSON'
 {"task":"guide","issue":7,"base":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","title":"Check the guide"}
 JSON
@@ -60,6 +62,7 @@ Use a client from the [participant guide](participants.md), or do the local oper
 | Maintainer | `inspect-report` | `{"token":"MAINTAINER","task":"guide"}` → report, evidence, revision, issue, verdict |
 | Maintainer | `authorize` | `{"token":"MAINTAINER","task":"guide","digest":"DIGEST"}` → unique publication marker; run only after reading the preview |
 | Publisher | `publish-local` | `{"token":"PUBLISHER","task":"guide","current_base":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","destination":"ABSOLUTE_RECEIPTS_DIRECTORY"}` → `7`, generates `<marker>.json` |
+| Maintainer | `decline` | `{"token":"MAINTAINER","task":"guide","digest":"DIGEST"}` → `null`; final refusal of that exact report, even after a `pass` review |
 | Operator | `audit` | `{}` → ordered events, including `authorized`, `dispatch_started`, `published` |
 
 Do not use `publish-local` on a ledger intended for GitHub. Both publishers consume the same dispatch grant. The table's issue ID is the receipt ID for this file sink only. Repeat the same local request to verify the same receipt and one file. A rejected report is final and cannot be authorized. One task per issue and a maximum of 32 tasks and 32 enrolments (including revoked accounts) bound the alpha. Each owner has at most one active lease and each task at most eight attempts. Use `active_limit: 0` to admit no work or `publication_limit: 0` to authorize no publication. Discovery is a snapshot, not a reservation; `busy` or `capacity` means stop and try later, not spin.

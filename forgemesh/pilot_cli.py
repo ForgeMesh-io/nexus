@@ -69,7 +69,7 @@ def main():
         "initialize": ledger.initialize, "enroll": ledger.enroll, "add-task": ledger.add_task,
         "discover": ledger.discover, "claim": ledger.claim, "submit": ledger.submit,
         "review": ledger.review, "inspect-report": ledger.inspect_report,
-        "authorize": ledger.authorize, "revoke": ledger.revoke,
+        "authorize": ledger.authorize, "decline": ledger.decline, "revoke": ledger.revoke,
         "stop": ledger.stop, "audit": ledger.audit,
         "publish-local": lambda **payload: publish_local(ledger, **payload),
         "publish-github": lambda **payload: publish_github(ledger, **payload),
