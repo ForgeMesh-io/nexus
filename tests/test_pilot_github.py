@@ -258,3 +258,31 @@ def test_adding_only_the_consent_file_keeps_an_unscoped_report_current(tmp_path)
         gateway(API(base="c" * 40, compare=other)).publish(ledger, publisher, "guide")
     only = {"status": "ahead", "total_commits": 1, "files": [{"filename": ".github/nexus.json"}]}
     assert gateway(API(base="c" * 40, compare=only)).publish(ledger, publisher, "guide") == 123
+
+
+@pytest.mark.parametrize("consent,result", [
+    ({"nexus": 1, "issues": [7], "read": ["docs/"], "patch": ["docs/"]}, 123),
+    ({"nexus": 1, "issues": [7], "read": ["docs/"], "patch": ["docs/guide.md"]}, 123),
+    ({"nexus": 1, "issues": [7], "read": ["docs/"]}, "no_consent"),
+    ({"nexus": 1, "issues": [7], "read": ["docs/"], "patch": ["src/"]}, "no_consent"),
+    ({"nexus": 1, "issues": [7], "read": ["docs/"], "patch": ["../x"]}, "invalid_consent"),
+])
+def test_patches_need_patch_consent_for_every_checked_file(tmp_path, consent, result):
+    ledger = Pilot(tmp_path / "pilot.db")
+    ledger.initialize("example/project")
+    author = ledger.enroll("author", "alice", "contributor")
+    reviewer = ledger.enroll("reviewer", "bob", "reviewer")
+    approver = ledger.enroll("approver", "carol", "maintainer")
+    publisher = ledger.enroll("publisher", "worker", "publisher")
+    ledger.add_task("fix", 7, BASE, "Fix the guide", ["docs/"], kind="patch")
+    digest = ledger.submit(author, "fix", ledger.claim(author, "fix"), "diff --git a/docs/guide.md b/docs/guide.md\n")
+    ledger.record_check("fix", digest, files=["docs/guide.md"])
+    ledger.review(reviewer, "fix", digest, "pass", "Applied")
+    ledger.authorize(approver, "fix", digest)
+    api = API(consent=consent)
+    if result == 123:
+        assert gateway(api).publish(ledger, publisher, "fix") == 123
+    else:
+        with pytest.raises(PilotError, match=result):
+            gateway(api).publish(ledger, publisher, "fix")
+        assert all(method == "GET" for method, _ in api.requests)

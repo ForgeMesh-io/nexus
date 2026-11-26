@@ -89,3 +89,20 @@ Its claim that labels are unreliable rests on a vendor blog and a forum post. I 
 **Contradiction kept:** skipping every issue with a linked PR may hide abandoned PRs that a helper could rescue. The skip reason is reported, so the maintainer can still select such an issue by hand.
 
 **Decision:** [ADR 003](adr-003-need-discovery.md). **H6 (new):** proposals never include an issue that is assigned or has an open linked PR at scan time, and never write. Enforced by tests. Observed read-only on GitHub: the fork and the upstream both return `no_consent`, because neither has the file. With an injected consent for issues 1 and 2, a replay against the live upstream proposed #1 and skipped #2 as a pull request, in 6 requests. Whether proposals save the maintainer time is **not run**: it is part of the three-arm experiment.
+
+## Round 5 — 2026-11-26: should Nexus carry code, and how?
+
+Question: can a contribution be a ready change without new GitHub permissions, more review load, or running untrusted code?
+
+NotebookLM compared three options: (a) the coordinator opens PRs, (b) a validated diff is posted as a comment, (c) text only. It found the least friction in (a), but also the highest review volume. It described (b) as more manual for the maintainer.
+
+| Source | What it supports | What it does not establish |
+| --- | --- | --- |
+| [git-apply documentation](https://git-scm.com/docs/git-apply) (fetched) | A patch "that affects outside the working area … is rejected as a mistake (or a mischief)" unless `--unsafe-paths`; `--numstat` lists paths without applying; `--check` applies nothing. | That `git apply` is safe on hostile input by itself. Hence the second layer: Bubblewrap, a `.git`-free tree, and an explicit refusal of modes, symlinks, renames and binaries. |
+| [GitHub App permissions](https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps) and [Create a pull request](https://docs.github.com/en/rest/pulls/pulls#create-a-pull-request) (fetched) | Opening a PR needs write access to a head branch. It triggers notifications and CI. | How much load one PR adds for a given project. |
+| Sarkar, [*Before the Pull Request: Mining Multi-Agent Coordination*](https://arxiv.org/abs/2606.19616), arXiv 2606.19616 (abstract read) | "Autonomous coding agents now open millions of pull requests, yet large-scale studies find their PRs are produced faster but accepted less often." | Any figure; the cited study was not read. |
+| [Bubblewrap](https://github.com/containers/bubblewrap) (observed locally) | `--unshare-all` gave `Network is unreachable` and only `lo` on this host. | Isolation against kernel exploits; nothing untrusted is executed. |
+
+**Contradiction kept:** the notebook cites sources that ask for direct PRs (`pequalnp-proofs`: "never … send a proof by comment; a proof goes in as a pull request"; *EvoGit*: map collaboration to native Git primitives). They come from projects that opted into agent PRs and run merge queues. Nexus adapts to projects that did not, so PRs stay a per-project opt-in for later. They are not the default.
+
+**Decision:** [ADR 004](adr-004-patch-artifact.md). **H7 (new):** a patch reaches a reviewer only after a sandboxed check at the pinned commit confirms that every changed file is a plain text file inside the task's paths. A failed check releases capacity. Publication also requires the project's `patch` consent. Enforced by tests, with mutation checks: removing the forbidden-change filter or the scope check makes tests fail. Rehearsal on a fresh ledger against the real pinned `FRGMesh/anyps5` commit: [script](rehearsals/patch_capacity.py), [output](rehearsals/patch_capacity.out). **Not run:** whether maintainers accept patches more often than reports.

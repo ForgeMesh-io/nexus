@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY, issue INTEGER UNIQUE NOT NULL, base TEXT NOT NULL, title TEXT NOT NULL,
     actor TEXT REFERENCES actors(id), expires INTEGER, attempt INTEGER NOT NULL DEFAULT 0,
     digest TEXT, report TEXT, reviewer TEXT REFERENCES actors(id), verdict TEXT, evidence TEXT,
-    paths TEXT NOT NULL DEFAULT '[]'
+    paths TEXT NOT NULL DEFAULT '[]', kind TEXT NOT NULL DEFAULT 'report', checked TEXT
 );
 CREATE TABLE IF NOT EXISTS audit (
     id INTEGER PRIMARY KEY, at INTEGER NOT NULL, event TEXT NOT NULL,
@@ -162,11 +162,14 @@ class Pilot:
     def upgrade(self):
         """Operator-only, idempotent; run after installing a newer version on an existing ledger."""
         with self._db(write=True) as db:
-            if "paths" not in [column["name"] for column in db.execute("PRAGMA table_info(tasks)")]:
-                db.execute("ALTER TABLE tasks ADD COLUMN paths TEXT NOT NULL DEFAULT '[]'")
-                self._event(db, "upgraded", added="tasks.paths")
+            columns = [column["name"] for column in db.execute("PRAGMA table_info(tasks)")]
+            for column, ddl in (("paths", "TEXT NOT NULL DEFAULT '[]'"), ("kind", "TEXT NOT NULL DEFAULT 'report'"),
+                                ("checked", "TEXT")):
+                if column not in columns:
+                    db.execute(f"ALTER TABLE tasks ADD COLUMN {column} {ddl}")
+                    self._event(db, "upgraded", added=f"tasks.{column}")
 
-    def add_task(self, task: str, issue: int, base: str, title: str, paths: list = ()):
+    def add_task(self, task: str, issue: int, base: str, title: str, paths: list = (), kind: str = "report"):
         """Operator-only; the issue, exact revision and listed paths are the approved scope.
 
         Without paths, any later change to the repository makes the report stale."""
@@ -174,7 +177,8 @@ class Pilot:
         _match(base, r"[0-9a-f]{40}")
         _text(title, 256)
         paths = list(paths) if isinstance(paths, tuple) else paths
-        if not valid_paths(paths, 16):
+        # A patch must name the paths it may change; they are its write scope.
+        if not valid_paths(paths, 16) or kind not in ("report", "patch") or (kind == "patch" and not paths):
             raise PilotError("invalid_input")
         if type(issue) is not int or not 1 <= issue <= 2**31 - 1:
             raise PilotError("invalid_input")
@@ -182,11 +186,11 @@ class Pilot:
             self._settings(db)
             if db.execute("SELECT count(*) FROM tasks").fetchone()[0] >= MAX_TASKS:
                 raise PilotError("capacity")
-            created = db.execute("INSERT OR IGNORE INTO tasks(id,issue,base,title,paths) VALUES(?,?,?,?,?)",
-                                 (task, issue, base, title, json.dumps(paths)))
+            created = db.execute("INSERT OR IGNORE INTO tasks(id,issue,base,title,paths,kind) VALUES(?,?,?,?,?,?)",
+                                 (task, issue, base, title, json.dumps(paths), kind))
             if not created.rowcount:
                 raise PilotError("conflict")
-            self._event(db, "task_added", task=task, issue=issue, base=base, paths=paths)
+            self._event(db, "task_added", task=task, issue=issue, base=base, paths=paths, kind=kind)
 
     def discover(self, token: str) -> dict:
         with self._db() as db:
@@ -194,16 +198,19 @@ class Pilot:
             settings = self._settings(db)
             tasks = []
             if actor["role"] == "contributor" and settings["active_limit"]:
-                tasks = db.execute("""SELECT id,issue,base,title,paths FROM tasks
+                tasks = db.execute("""SELECT id,issue,base,title,paths,kind FROM tasks
                     WHERE digest IS NULL AND attempt < ? AND (expires IS NULL OR expires <= ?)
                     ORDER BY id""", (MAX_ATTEMPTS, int(self.clock())))
             elif actor["role"] == "reviewer":
-                tasks = db.execute("""SELECT t.id,issue,base,title,paths,digest,report FROM tasks AS t
+                tasks = db.execute("""SELECT t.id,issue,base,title,paths,kind,checked,digest,report FROM tasks AS t
                     JOIN actors AS a ON t.actor=a.id
                     WHERE digest IS NOT NULL AND verdict IS NULL AND a.owner != ? AND a.revoked=0
+                    AND (kind='report' OR checked IS NOT NULL)
                     ORDER BY t.id""", (actor["owner"],))
-            return {"repository": settings["repository"],
-                    "tasks": [dict(task) | {"paths": json.loads(task["paths"])} for task in tasks]}
+            return {"repository": settings["repository"], "tasks": [
+                dict(task) | {key: json.loads(task[key]) for key in ("paths", "checked")
+                              if key in task.keys() and task[key] is not None}
+                for task in tasks]}
 
     @staticmethod
     def _task(db, task):
@@ -244,7 +251,8 @@ class Pilot:
             return attempt
 
     def submit(self, token: str, task: str, lease: int, report: str) -> str:
-        digest = sha256(_text(report, 8_192)).hexdigest()
+        """A text report (8 KiB) or, for patch tasks, a unified diff (16 KiB); never executed here."""
+        digest = sha256(_text(report, 16_384)).hexdigest()
         if type(lease) is not int or not 1 <= lease <= MAX_ATTEMPTS:
             raise PilotError("invalid_input")
         with self._db(write=True) as db:
@@ -259,6 +267,8 @@ class Pilot:
                 raise PilotError("conflict")
             if row["expires"] is None or row["expires"] <= int(self.clock()):
                 raise PilotError("stale_lease")
+            if row["kind"] == "report" and len(report.encode("utf-8")) > 8_192:
+                raise PilotError("invalid_input")
             db.execute("UPDATE tasks SET digest=?, report=?, expires=NULL WHERE id=?", (digest, report, task))
             self._event(db, "submitted", actor["id"], task, digest=digest, attempt=lease)
             return digest
@@ -281,6 +291,8 @@ class Pilot:
                 raise PilotError("withdrawn")
             if row["verdict"] == "declined":
                 raise PilotError("declined")
+            if row["kind"] == "patch" and row["checked"] is None:
+                raise PilotError("not_checked")
             if row["reviewer"] is None:
                 db.execute("UPDATE tasks SET reviewer=?,verdict=?,evidence=? WHERE id=?",
                            (reviewer["id"], verdict, evidence, task))
@@ -295,6 +307,41 @@ class Pilot:
             if not db.execute("SELECT 1 FROM actors WHERE id=? AND revoked=0", (actor,)).fetchone():
                 raise PilotError("withdrawn")
 
+    def patch_to_check(self, task: str) -> dict:
+        """Operator-only; the submitted patch with the base and paths it must be checked against."""
+        with self._db() as db:
+            self._settings(db)
+            row = self._task(db, task)
+            if row["kind"] != "patch" or row["digest"] is None:
+                raise PilotError("no_report")
+            return {"base": row["base"], "paths": json.loads(row["paths"]), "digest": row["digest"],
+                    "patch": row["report"]}
+
+    def record_check(self, task: str, digest: str, *, files: list | None = None, reason: str | None = None):
+        """Operator-only result of the sandboxed patch check; a failure is a final rejection."""
+        _match(digest, r"[0-9a-f]{64}")
+        if (files is None) == (reason is None) or (files is not None and not valid_paths(files, 64)) or (
+                reason is not None and not re.fullmatch(r"[a-z_]{1,32}", reason)):
+            raise PilotError("invalid_input")
+        result = json.dumps(files) if files is not None else None
+        with self._db(write=True) as db:
+            self._settings(db)
+            row = self._task(db, task)
+            if row["digest"] != digest or row["kind"] != "patch":
+                raise PilotError("stale_digest")
+            if files is not None and row["checked"] == result and row["verdict"] is None:
+                return
+            if reason is not None and row["verdict"] == "reject" and row["reviewer"] is None:
+                return
+            if row["checked"] is not None or row["verdict"] is not None:
+                raise PilotError("conflict")
+            if files is not None:
+                db.execute("UPDATE tasks SET checked=? WHERE id=?", (result, task))
+            else:
+                # No reviewer: the slot is released and the maintainer can never authorize it.
+                db.execute("UPDATE tasks SET verdict='reject', evidence=? WHERE id=?", ("check: " + reason, task))
+            self._event(db, "checked", task=task, digest=digest, result=reason or "ok", files=files)
+
     def inspect_report(self, token: str, task: str) -> dict:
         with self._db() as db:
             self._actor(db, token, "maintainer")
@@ -303,8 +350,8 @@ class Pilot:
             if row["digest"] is None:
                 raise PilotError("no_report")
             return {"repository": settings["repository"], **{key: row[key] for key in (
-                "issue", "base", "title", "report", "digest", "actor", "reviewer", "verdict", "evidence",
-            )}}
+                "issue", "base", "title", "kind", "report", "digest", "actor", "reviewer", "verdict", "evidence",
+            )}, "checked": None if row["checked"] is None else json.loads(row["checked"])}
 
     def authorize(self, token: str, task: str, digest: str) -> str:
         _match(digest, r"[0-9a-f]{64}")
@@ -368,7 +415,7 @@ class Pilot:
     @staticmethod
     def _publication(settings, task, intent):
         return {"repository": settings["repository"], "marker": intent["marker"],
-                **{key: task[key] for key in ("issue", "base", "digest", "report")}}
+                **{key: task[key] for key in ("issue", "base", "digest", "report", "kind")}}
 
     def dispatched(self, token: str, task: str) -> dict | None:
         """Inspect an already-started dispatch without granting another send."""
@@ -389,7 +436,8 @@ class Pilot:
             if intent:
                 self._check_active(db, row["actor"], row["reviewer"], intent["approver"])
                 return {"repository": settings["repository"], "issue": row["issue"], "base": row["base"],
-                        "paths": json.loads(row["paths"])}
+                        "paths": json.loads(row["paths"]), "kind": row["kind"],
+                        "checked": None if row["checked"] is None else json.loads(row["checked"])}
 
     def record_publication(self, token: str, marker: str, receipt: int) -> int:
         """Record only an independently observed receipt, including after a stop."""

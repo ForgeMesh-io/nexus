@@ -56,7 +56,8 @@ def test_explicit_opt_in_and_discovery_returns_pinned_work(workspace, tmp_path):
         ledger.discover("forged")
     assert ledger.discover(tokens["writer"]) == {
         "repository": "example/project", "tasks": [
-            {"id": "guide", "issue": 10, "base": BASE, "title": "Check the recipe", "paths": []},
+            {"id": "guide", "issue": 10, "base": BASE, "title": "Check the recipe", "paths": [],
+             "kind": "report"},
         ],
     }
     assert ledger.discover(tokens["reviewer"])["tasks"] == []
@@ -234,7 +235,7 @@ def test_reopening_after_dispatch_cannot_regrant_send_and_records_receipt(worksp
     assert [a, b].count(None) == 1
     assert next(result for result in (a, b) if result) == {
         "repository": "example/project", "issue": 10, "base": BASE, "marker": marker,
-        "digest": digest, "report": REPORT,
+        "digest": digest, "report": REPORT, "kind": "report",
     }
     reopened = pilot.Pilot(path, clock=lambda: now[0])
     assert reopened.begin_dispatch(publisher, "guide", BASE) is None

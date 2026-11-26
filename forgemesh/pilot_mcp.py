@@ -60,9 +60,10 @@ def bridge(port, token=None):
         return {"lease": request(ctx, "claim", task=task)}
 
     @server.tool(annotations=ToolAnnotations(destructive_hint=False, open_world_hint=False))
-    def submit(task: Task, lease: StrictInt, report: Annotated[str, Field(max_length=8192)],
+    def submit(task: Task, lease: StrictInt, report: Annotated[str, Field(max_length=16384)],
                ctx: Context) -> dict[str, str]:
-        """Submit a plain text report (8 KiB max) for independent review. Does not publish."""
+        """Submit a plain text report (8 KiB max), or a unified diff (16 KiB max) for a task of kind
+        'patch', for independent review. Nothing is executed or published."""
         return {"digest": request(ctx, "submit", task=task, lease=lease, report=report)}
 
     @server.tool(annotations=ToolAnnotations(destructive_hint=False, open_world_hint=False))

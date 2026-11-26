@@ -24,19 +24,22 @@ def parse_consent(raw):
     except (ValueError, RecursionError):
         raise PilotError("invalid_consent") from None
     # `read` has the same limit as a task's paths, so a proposal can always reuse it unchanged.
-    if (not isinstance(consent, dict) or set(consent) != {"nexus", "issues", "read"} or consent["nexus"] != 1
+    if (not isinstance(consent, dict) or not {"nexus", "issues", "read"} <= set(consent) <= {
+            "nexus", "issues", "read", "patch"} or consent["nexus"] != 1
             or type(consent["nexus"]) is not int or not isinstance(consent["issues"], list)
             or len(consent["issues"]) > 100 or len(set(consent["issues"])) != len(consent["issues"])
             or not all(type(n) is int and 1 <= n <= 2**31 - 1 for n in consent["issues"])
-            or not valid_paths(consent["read"], 16)):
+            or not valid_paths(consent["read"], 16) or not valid_paths(consent.get("patch", []), 16)):
         raise PilotError("invalid_consent")
     return consent
 
 
-def check_consent(consent, issue, paths):
-    """The maintainer-owned file must name this issue and cover every path the task reads."""
+def check_consent(consent, issue, paths, changed=()):
+    """The maintainer-owned file must name this issue, cover every path the task reads and, for a
+    patch, every file it changes; without a `patch` key the project accepts no patches."""
     if issue not in consent["issues"] or not all(
-            any(_covers(scope, path) for scope in consent["read"]) for path in paths):
+            any(_covers(scope, path) for scope in consent["read"]) for path in paths) or not all(
+            any(_covers(scope, path) for scope in consent.get("patch", [])) for path in changed):
         raise PilotError("no_consent")
 
 
@@ -121,8 +124,12 @@ class GitHubPublisher(GitHubReader):
     @staticmethod
     def _body(intent):
         text = "\n".join("    " + line for line in intent["report"].splitlines())
-        return (f'<!-- forgemesh-nexus:{intent["marker"]} -->\n\n'
-                f'Nexus report for `{intent["base"]}`. Report SHA-256: `{intent["digest"]}`.\n\n{text}')
+        if intent.get("kind") == "patch":
+            lead = (f'Nexus patch for `{intent["base"]}`, checked in a sandbox and reviewed. '
+                    f'Patch SHA-256: `{intent["digest"]}`. Apply it with `git apply` at that commit.')
+        else:
+            lead = f'Nexus report for `{intent["base"]}`. Report SHA-256: `{intent["digest"]}`.'
+        return f'<!-- forgemesh-nexus:{intent["marker"]} -->\n\n{lead}\n\n{text}'
 
     def _receipt(self, comment, body):
         if (isinstance(comment, dict) and comment.get("body") == body
@@ -144,7 +151,9 @@ class GitHubPublisher(GitHubReader):
         if (not isinstance(current, dict) or current.get("number") != issue
                 or current.get("state") != "open" or current.get("locked") or "pull_request" in current):
             raise PilotError("ineligible_issue")
-        check_consent(self.consent(path, head), issue, target["paths"])
+        if target["kind"] == "patch" and not target["checked"]:
+            raise PilotError("not_checked")
+        check_consent(self.consent(path, head), issue, target["paths"], target["checked"] or ())
         base = target["base"] if head == target["base"] or self._unchanged(path, target, head) else head
         intent = ledger.begin_dispatch(token, task, base, head)
         if intent is None:

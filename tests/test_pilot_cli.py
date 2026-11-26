@@ -64,7 +64,7 @@ def test_local_cycle_discovers_validates_and_exports_one_authorized_report(tmp_p
     assert receipt.name == f"{marker}.json"
     assert json.loads(receipt.read_text()) == {
         "repository": "example/project", "issue": 7, "base": BASE, "marker": marker,
-        "digest": digest, "report": report,
+        "digest": digest, "report": report, "kind": "report",
     }
     audit = call(state, "audit")
     assert [event["event"] for event in audit][-3:] == ["authorized", "dispatch_started", "published"]

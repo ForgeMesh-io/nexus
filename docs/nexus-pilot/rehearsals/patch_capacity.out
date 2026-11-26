@@ -1,0 +1,26 @@
+initialize (active_limit=1)                      null
+add-task build-doc (patch, docs/dev/BUILD.md)    null
+add-task dev-docs (patch, docs/dev/)             null
+add-task notes (report)                          null
+API listening                                    "http://127.0.0.1:8791"
+alice claim build-doc                            [200, 1]
+dana claim dev-docs (slot full)                  [429, {"error": "capacity"}]
+alice submit patch (803 bytes)                   [200, "922d18e5e89b\u2026"]
+dana claim (patch awaiting check holds slot)     [429, {"error": "capacity"}]
+bob discover (unchecked patch hidden)            [200, {"repository": "frgmesh/anyps5", "tasks": []}]
+bob review before check                          [409, {"error": "not_checked"}]
+check-patch (bwrap, pinned clone)                {"ok": true, "files": ["docs/dev/BUILD.md"]}
+  check duration                                 0.89s
+bob discover after check                         [200, [["build-doc", "patch", ["docs/dev/BUILD.md"]]]]
+bob review pass                                  [200, "validated"]
+dana claim (awaiting maintainer holds slot)      [429, {"error": "capacity"}]
+carol decline                                    null
+carol decline again (idempotent)                 null
+carol authorize after decline                    {"error": "not_validated"}
+dana claim dev-docs (slot freed)                 [200, 1]
+dana submit patch touching CONTRIBUTING.md       [200, "ced628927efd\u2026"]
+check-patch                                      {"ok": false, "reason": "out_of_scope"}
+bob discover (rejected patch never shown)        [200, {"repository": "frgmesh/anyps5", "tasks": []}]
+alice claim notes (slot freed by failed check)   [200, 1]
+audit: [('claimed', 'build-doc', None), ('submitted', 'build-doc', None), ('checked', 'build-doc', 'ok'), ('reviewed', 'build-doc', 'pass'), ('declined', 'build-doc', None), ('claimed', 'dev-docs', None), ('submitted', 'dev-docs', None), ('checked', 'dev-docs', 'out_of_scope'), ('claimed', 'notes', None)]
+clone untouched: True

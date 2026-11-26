@@ -59,6 +59,21 @@ def propose(ledger, token):
     return propose(ledger, token)
 
 
+def check_patch(ledger, task, repository):
+    """Check the submitted patch against a local clone in Bubblewrap, then record the result."""
+    from .pilot_patch import check_patch
+
+    if not isinstance(repository, str) or not Path(repository).is_absolute() or not Path(repository).is_dir():
+        raise PilotError("invalid_input")
+    pending = ledger.patch_to_check(task)
+    result = check_patch(repository, pending["base"], pending["paths"], pending["patch"])
+    if result["ok"]:
+        ledger.record_check(task, pending["digest"], files=result["files"])
+    else:
+        ledger.record_check(task, pending["digest"], reason=result["reason"])
+    return result
+
+
 def _object(pairs):
     result = dict(pairs)
     if len(result) != len(pairs):
@@ -80,6 +95,7 @@ def main():
         "stop": ledger.stop, "audit": ledger.audit, "upgrade": ledger.upgrade,
         "publish-local": lambda **payload: publish_local(ledger, **payload),
         "publish-github": lambda **payload: publish_github(ledger, **payload),
+        "check-patch": lambda **payload: check_patch(ledger, **payload),
         "propose": lambda: propose(ledger, os.environ.get("NEXUS_GITHUB_TOKEN") or None),
     }
     try:
@@ -93,9 +109,10 @@ def main():
             if not isinstance(data, dict):
                 raise TypeError("expected object")
             command = commands[args.action]
-            if args.action.startswith("publish-"):
-                publisher = publish_local if args.action == "publish-local" else publish_github
-                inspect.signature(publisher).bind(ledger, **data)
+            if args.action.startswith("publish-") or args.action == "check-patch":
+                target = {"publish-local": publish_local, "publish-github": publish_github,
+                          "check-patch": check_patch}[args.action]
+                inspect.signature(target).bind(ledger, **data)
             else:
                 inspect.signature(command).bind(**data)
         except (ValueError, TypeError, RecursionError):

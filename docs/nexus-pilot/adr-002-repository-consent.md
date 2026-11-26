@@ -25,6 +25,7 @@ A project consents by committing `.github/nexus.json` to its default branch:
 
 - `issues`: the only issues Nexus may comment on.
 - `read`: the files, or directories ending in `/`, that a task may rely on.
+- `patch` (optional, added by [ADR 004](adr-004-patch-artifact.md)): the files or directories where the project accepts patches. Without it, no patch is published.
 - Unknown keys, versions other than `1` and malformed paths are rejected (`invalid_consent`). Rejecting unknown keys avoids a silent difference between what the maintainer believes they configured and what Nexus enforces.
 
 The publisher re-reads the file **at the exact default-branch commit it is about to publish against**, after maintainer authorization and before the single send grant. It refuses with `no_consent` if:
