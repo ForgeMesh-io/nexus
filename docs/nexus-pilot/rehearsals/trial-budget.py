@@ -3,7 +3,10 @@
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from hashlib import sha256
-from threading import Event, Lock
+from http.client import HTTPConnection, HTTPException
+import json
+from socket import SHUT_RDWR
+from threading import Event, Lock, Thread
 from time import monotonic
 
 from forgemesh.pilot import PilotError
@@ -11,6 +14,11 @@ from forgemesh.pilot import PilotError
 
 class Refused(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class NoAction:
+    reason: str
 
 
 @dataclass(frozen=True)
@@ -116,6 +124,74 @@ class Budget:
         return result
 
 
+def prepare_llama(port, prompt):
+    """Candidate adapter for a disposable 4,096-token slot with context shifting disabled."""
+    slot, output = 4096, 768
+
+    def send(deadline, stop):
+        def post(path, body):
+            timeout = deadline - monotonic()
+            if stop.is_set() or timeout <= 0:
+                raise TimeoutError("model dispatch stopped")
+            connection = HTTPConnection("127.0.0.1", port, timeout=min(timeout, 5))
+            finished = Event()
+            connection.connect()
+            sock = connection.sock
+
+            def watch():
+                while not finished.wait(0.025):
+                    if stop.is_set() or monotonic() >= deadline:
+                        try:
+                            sock.shutdown(SHUT_RDWR)
+                        except OSError:
+                            pass
+                        return
+
+            watcher = Thread(target=watch)
+            watcher.start()
+            try:
+                if stop.is_set() or monotonic() >= deadline:
+                    raise TimeoutError("model dispatch stopped")
+                connection.request("POST", path, json.dumps(body), {"Content-Type": "application/json"})
+                response = connection.getresponse()
+                if response.status != 200:
+                    raise OSError(f"model HTTP status {response.status}")
+                with response:
+                    raw = response.read(65537)
+                if len(raw) > 65536:
+                    raise OSError("model response too large")
+                value = json.loads(raw)
+                if not isinstance(value, dict):
+                    raise OSError("model response is not an object")
+                return value
+            except (ValueError, HTTPException, RecursionError) as exc:
+                raise OSError("invalid model response") from exc
+            finally:
+                finished.set()
+                connection.close()
+                watcher.join()
+
+        tokens = post("/tokenize", {"content": prompt, "parse_special": False, "add_special": True}).get("tokens")
+        if not isinstance(tokens, list) or not tokens or any(type(t) is not int or t < 0 for t in tokens):
+            return None, None
+        if len(tokens) + output >= slot:
+            return NoAction("prompt_too_large"), Usage(0, 0)
+        result = post("/completion", {"prompt": tokens, "n_predict": output, "n_cmpl": 1,
+                                     "cache_prompt": False, "stream": False, "temperature": 0})
+        count, generated = result.get("tokens_evaluated"), result.get("tokens_predicted")
+        if type(count) is not int or count != len(tokens) or type(generated) is not int or generated < 0:
+            return None, None
+        usage = Usage(count, generated)
+        if result.get("truncated") is not False:
+            return NoAction("truncated"), usage
+        try:
+            return json.loads(result["content"]), usage
+        except (KeyError, TypeError, ValueError, RecursionError):
+            return NoAction("invalid_output"), usage
+
+    return slot, send
+
+
 def run_arm(base, tasks, sources, workers, prepare, *, ledger=None, credentials=(), clock=monotonic):
     """Run scripted action turns. `prepare` builds a request without dispatching it."""
     if ledger is not None and (workers != 2 or len(credentials) != workers):
@@ -180,6 +256,8 @@ def run_arm(base, tasks, sources, workers, prepare, *, ledger=None, credentials=
                 op = "model"
                 bound, send = prepare(worker, history)
                 action = budget.model(worker, bound, send)
+                if isinstance(action, NoAction):
+                    raise Refused(action.reason)
                 if action == {"op": "stop"}:
                     return reports, "model_stop", trace
                 op = action.get("op") if isinstance(action, dict) else None
@@ -194,7 +272,7 @@ def run_arm(base, tasks, sources, workers, prepare, *, ledger=None, credentials=
                     reports.append({"task": active, "report": action["report"], "digest": result["digest"]})
                     completed.add(active)
                     active = lease = None
-                history.append(result)
+                history.append({"action": action, "result": result})
         except Refused as exc:
             reason = str(exc)
         except OSError:

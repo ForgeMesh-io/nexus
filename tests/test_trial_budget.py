@@ -1,15 +1,18 @@
 """Offline checks for the experimental runner's dispatch gate."""
 
 from concurrent.futures import ThreadPoolExecutor
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import json
 from pathlib import Path
 from runpy import run_path
-from threading import Barrier, Event
+from threading import Barrier, Event, Thread
+from time import monotonic
 
 import pytest
 from forgemesh.pilot import Pilot
 
 gate = run_path(str(Path(__file__).resolve().parents[1] / "docs/nexus-pilot/rehearsals/trial-budget.py"))
-Budget, Refused, Usage = (gate[name] for name in ("Budget", "Refused", "Usage"))
+Budget, NoAction, Refused, Usage = (gate[name] for name in ("Budget", "NoAction", "Refused", "Usage"))
 
 
 def never(*args):
@@ -205,7 +208,7 @@ def test_same_action_loop_scopes_reads_and_keeps_private_outputs(tmp_path, arm, 
 
     def prepare(worker, history):
         step = len(history) - 1
-        row = history[-1]
+        row = history[-1] if step == 0 else history[-1]["result"]
         if step == 0:
             assert row == {"base": base, "tasks": tasks}
 
@@ -216,7 +219,7 @@ def test_same_action_loop_scopes_reads_and_keeps_private_outputs(tmp_path, arm, 
                 picked.wait()
             if step == 0:
                 action = {"op": "start", "task": "guide"}
-            elif history[1] == {"error": "busy"}:
+            elif history[1]["result"] == {"error": "busy"}:
                 action = {1: {"op": "discover"}, 2: {"op": "start", "task": "build"},
                           3: {"op": "read", "path": "build.md", "first": 2, "last": 2},
                           4: {"op": "submit", "report": "build"},
@@ -303,9 +306,9 @@ def test_read_ranges_fail_closed_and_count_refusals():
     def prepare(worker, history):
         step = len(history) - 1
         if step and errors[step - 1][1]:
-            assert history[-1]["error"] == errors[step - 1][1]
+            assert history[-1]["result"]["error"] == errors[step - 1][1]
             if errors[step - 1][1] == "invalid_range":
-                assert history[-1]["lines"] == 2
+                assert history[-1]["result"]["lines"] == 2
         return 200, lambda *_: (errors[step][0], Usage(100, 20))
 
     tasks = [dict(task="guide", paths=["guide.md"])]
@@ -329,3 +332,152 @@ def test_runner_preserves_partial_reports_when_model_response_is_lost():
     assert reports[0][0]["report"] == "fixture"
     assert counters == [{"requests": 3, "tools": 2, "tokens": 240, "unknown": 1}]
     assert stops == ["unknown_usage"] and traces[0][-1] == {"op": "model", "error": "unknown_usage"}
+
+
+def test_next_request_gets_only_its_own_action_and_result():
+    def prepare(worker, history):
+        if len(history) == 1:
+            action = {"op": "start", "task": "guide"}
+        else:
+            assert history[-1] == {"action": {"op": "start", "task": "guide"}, "result": {"started": "guide"}}
+            action = {"op": "stop"}
+        return 200, lambda *_: (action, Usage(100, 20))
+
+    tasks = [dict(task="guide", paths=["guide.md"])]
+    reports, counters, stops, _ = gate["run_arm"]("a" * 40, tasks, {"guide.md": "fixture"}, 2, prepare)
+    assert reports == [[], []] and stops == ["model_stop", "model_stop"]
+    assert [w["requests"] for w in counters] == [2, 2]
+
+
+def test_adapter_context_refusal_is_not_counted_as_a_tool_call():
+    def prepare(worker, history):
+        return 4096, lambda *_: (NoAction("prompt_too_large"), Usage(0, 0))
+
+    reports, counters, stops, traces = gate["run_arm"]("a" * 40, [], {}, 1, prepare)
+    assert reports == [[]] and stops == ["prompt_too_large"]
+    assert counters == [{"requests": 1, "tools": 0, "tokens": 0, "unknown": 0}]
+    assert traces == [[{"op": "model", "error": "prompt_too_large"}]]
+
+
+@pytest.mark.parametrize("mode", ["ok", "missing", "mismatch", "truncated", "expired", "oversize", "slow", "cancelled"])
+def test_loopback_adapter_reserves_a_slot_and_requires_complete_usage(mode):
+    wire = []
+    entered, release, stop = Event(), Event(), Event()
+
+    class Fixture(BaseHTTPRequestHandler):
+        def do_POST(self):
+            data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            wire.append((self.path, data))
+            if self.path == "/tokenize":
+                payload = {"tokens": [11, 22, 33] if mode != "oversize" else [11] * 3328}
+            else:
+                payload = {"content": '{"op":"stop"}', "tokens_evaluated": 3,
+                           "tokens_predicted": 4, "truncated": False}
+                if mode == "missing":
+                    del payload["tokens_predicted"]
+                if mode == "mismatch":
+                    payload["tokens_evaluated"] = 2
+                if mode == "truncated":
+                    payload["truncated"] = True
+            self.send_response(200)
+            self.end_headers()
+            if self.path == "/completion" and mode in ("slow", "cancelled"):
+                self.wfile.write(b"{")
+                entered.set()
+                release.wait(5)
+                return
+            self.wfile.write(json.dumps(payload).encode())
+
+        def log_message(self, *args):
+            pass
+
+    with ThreadingHTTPServer(("127.0.0.1", 0), Fixture) as server:
+        serving = Thread(target=server.serve_forever, kwargs={"poll_interval": 0.02})
+        serving.start()
+        try:
+            bound, send = gate["prepare_llama"](server.server_port, "Synthetic prompt.")
+            assert bound == 4096 and wire == []
+            deadline = monotonic() + (-1 if mode == "expired" else 3)
+            if mode == "expired":
+                with pytest.raises(TimeoutError):
+                    send(deadline, Event())
+                assert wire == []
+                return
+            if mode == "oversize":
+                assert send(deadline, stop) == (NoAction("prompt_too_large"), Usage(0, 0))
+                assert [path for path, _ in wire] == ["/tokenize"]
+                return
+            if mode in ("slow", "cancelled"):
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    end = monotonic() + (0.4 if mode == "slow" else 5)
+                    pending = pool.submit(send, end, stop)
+                    assert entered.wait(1)
+                    if mode == "cancelled":
+                        stop.set()
+                    with pytest.raises(OSError):
+                        pending.result(timeout=1)
+                assert not release.is_set()
+                assert [path for path, _ in wire] == ["/tokenize", "/completion"]
+                return
+            budget = Budget(1)
+            if mode in ("ok", "truncated"):
+                assert budget.model(0, bound, send) == ({"op": "stop"} if mode == "ok" else NoAction("truncated"))
+                assert budget.snapshot()[0]["tokens"] == 7
+            else:
+                with pytest.raises(Refused, match="unknown_usage"):
+                    budget.model(0, bound, send)
+                assert budget.snapshot()[0]["unknown"] == 1
+            assert [path for path, _ in wire] == ["/tokenize", "/completion"]
+            assert wire[0][1] == {"content": "Synthetic prompt.", "parse_special": False, "add_special": True}
+            assert wire[1][1]["prompt"] == [11, 22, 33]
+            assert wire[1][1]["n_predict"] == 768 and wire[1][1]["n_cmpl"] == 1
+            assert wire[1][1]["cache_prompt"] is False and wire[1][1]["stream"] is False
+        finally:
+            release.set()
+            server.shutdown()
+            serving.join()
+
+
+@pytest.mark.parametrize("workers", [1, 2])
+def test_loopback_adapter_cannot_dispatch_beyond_the_worker_partition(workers):
+    # Raw HTTP observations, independent of the runner's counters.
+    sent = []
+    simultaneous = Barrier(workers, timeout=4)
+
+    class Fixture(BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            if self.path == "/tokenize":
+                worker, step = map(int, body["content"].split(":"))
+                data = {"tokens": [worker + 1, step + 10]}
+            else:
+                assert self.path == "/completion"
+                worker, step = body["prompt"]
+                if step == 10:
+                    simultaneous.wait()
+                sent.append((worker, step))
+                data = {"tokens_evaluated": 2, "tokens_predicted": 8, "truncated": False,
+                        "content": '{"op":"read","path":"out-of-scope","first":1,"last":1}'}
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(json.dumps(data).encode())
+
+        def log_message(self, *args):
+            pass
+
+    with ThreadingHTTPServer(("127.0.0.1", 0), Fixture) as server:
+        serving = Thread(target=server.serve_forever, kwargs={"poll_interval": 0.02})
+        serving.start()
+        try:
+            def prepare(worker, history):
+                return gate["prepare_llama"](server.server_port, f"{worker}:{len(history) - 1}")
+
+            reports, counters, stops, traces = gate["run_arm"]("a" * 40, [], {}, workers, prepare)
+        finally:
+            server.shutdown()
+            serving.join()
+    partition = 12 // workers
+    assert sorted(sent) == [(i + 1, step + 10) for i in range(workers) for step in range(partition)]
+    assert reports == [[]] * workers and stops == ["request_limit"] * workers
+    assert counters == [{"requests": partition, "tools": partition, "tokens": 10 * partition, "unknown": 0}] * workers
+    assert all(trace.count({"op": "read", "error": "out_of_scope"}) == partition for trace in traces)
