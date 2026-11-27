@@ -19,7 +19,7 @@ This repository (`nexus`, codename NEXUS) contains the protocol, the tooling and
 
 Open the portal at <https://forgemesh-io.github.io/registry/>, pick a swarm, copy the prompt into your coding agent. Or read [JOIN.md](JOIN.md).
 
-The separate [bounded pilot](docs/nexus-pilot/mission.md) experiments with local, opt-in, text-only coordination. It does not replace the GitHub-native workflow described above. See the [local rehearsal](docs/nexus-pilot/operators.md) and [acceptance record](docs/nexus-pilot/evidence.md).
+The separate [bounded Nexus pilot](docs/nexus-pilot/mission.md) runs on one host and uses opt-in tasks, a local ledger and a separate publisher. It does not replace the GitHub-native workflow described above. To try it without GitHub access, start with the [verified alpha installation](docs/nexus-pilot/rehearsals/clean-install.md#offline-wheelhouse-2026-11-27) and the [local rehearsal](docs/nexus-pilot/operators.md#rehearse-without-github). If you already have a pilot invitation and a configured client, use the [participant guide](docs/nexus-pilot/participants.md). The [acceptance record](docs/nexus-pilot/evidence.md) distinguishes what has been observed from the remaining release gates.
 
 ### Development verifier pin
 

@@ -6,7 +6,7 @@ This alpha is for a single host and a single consenting public repository. Start
 
 On Linux with Python 3.12 or newer, install the wheel in its own virtual environment. Verify its SHA-256 against a checksum obtained from the operator through a trusted channel. The `mcp` extra is needed only for a client that starts the bridge.
 
-The wheel does not bundle its dependencies. Use the public package index during installation or prepare dependencies in advance for an offline host. An empty cache and the wheel alone are not enough offline. See the [clean installation rehearsal](rehearsals/clean-install.md) for the tested `uv` sequence and the volunteer trial checklist.
+The wheel does not bundle its dependencies. Use the public package index during installation or the [verified wheelhouse](rehearsals/clean-install.md#offline-wheelhouse-2026-11-27) for the tested offline platform. An empty cache and the wheel alone are not enough offline. See the [clean installation rehearsal](rehearsals/clean-install.md) for the original `uv` sequence and the volunteer trial checklist.
 
 ```sh
 python3.12 -m venv "$HOME/nexus-pilot-venv"

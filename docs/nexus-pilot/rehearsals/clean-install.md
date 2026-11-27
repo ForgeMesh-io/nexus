@@ -36,8 +36,43 @@ Package entry points absent; retained ledger integrity: ok
 - OpenCode 2.0.21 rejected `opencode mcp list --standalone` (`Unrecognized flag: --standalone`). Use `opencode --standalone`, then `/mcps`. A visible connection is not an authenticated task call. The rehearsal restored the original project config byte-for-byte.
 - A missing credential stops the bridge; a revoked credential can still allow MCP negotiation but cannot discover a task. Preparing the API, connector configuration and private credential delivery still takes an operator. The chat prompt does not perform setup.
 
+## Offline wheelhouse (2026-11-27)
+
+An operator can supply the checked `forgemesh-nexus-0.1.0a1-linux-x86_64-cp312-wheelhouse.tar.gz` candidate. This is not a public release or a signed artifact. Verify the expected archive hash through a trusted channel before extracting into a new private directory. The bundle contains `BUILD-REF` and 32 wheels with individual SHA-256 checksums in `wheelhouse/SHA256SUMS`. It contains no credentials, pilot database, Python interpreter, AI harness or test packages. Tested on Linux x86-64 with CPython 3.12.9 and glibc 2.44; some wheels require glibc 2.34 or newer. No other platform was tested with this bundle.
+
+```sh
+# BUNDLE is the absolute path to the archive supplied by the operator.
+umask 077
+scratch=$(mktemp -d)
+printf '%s  %s\n' 8e65106da041e16641f6e9a67e8fe7f90b40e6eab7891a0b52831d588fa977eb "$BUNDLE" | sha256sum -c - &&
+  tar --no-same-owner -xzf "$BUNDLE" -C "$scratch" &&
+  (cd "$scratch/wheelhouse" && sha256sum -c SHA256SUMS) &&
+  python3.12 -I -m venv "$scratch/venv" &&
+  PIP_CONFIG_FILE=/dev/null "$scratch/venv/bin/python" -I -m pip --isolated --disable-pip-version-check --no-cache-dir install \
+    --no-index --only-binary=:all: --find-links "$scratch/wheelhouse" 'forgemesh-nexus[mcp]==0.1.0a1' &&
+  "$scratch/venv/bin/python" -I -m pip check &&
+  "$scratch/venv/bin/nexus-pilot" --help
+```
+
+**Build provenance:** `2010c8b80bfb172d0fc7dfac58113e478c0be4a2`, setuptools 84.2.1, Python 3.12.9. Build from a fresh `git archive` of that commit with `umask 077`, `SOURCE_DATE_EPOCH` set to the commit timestamp, and `uv build --wheel --offline --no-build-isolation --python "$BUILD_PYTHON"`. Two fresh builds with those inputs produced the same wheel SHA-256, `0f533c2a495b061c3452a0cb9ad2e58105b1eeca506fc39d74ab027a71be8611`. A different umask changed ZIP permission metadata and the digest. [Download binary dependencies](https://pip.pypa.io/en/stable/cli/pip_download/) from the public index on a matching platform and retain and verify the wheelhouse manifest; a later dependency resolution is not guaranteed to reproduce the bundle.
+
+**Observed:** With a fresh home and virtual environment, cache disabled, and only loopback networking, the install succeeded and `pip check` found no broken requirements. All three console commands started. The exact archive-install commands above also passed in a second fresh environment and refused a modified archive before extraction. With separate local pytest wheels, the installed package passed **240 tests in 43.56 s** with the OpenCode, Codex and Bubblewrap checks enabled; `check-config` returned `OK: swarm 'nexus', 8 task(s)`. No model provider or GitHub credential was used. Offline installation does not imply that Antigravity can run its cloud model offline.
+
+**Operational restore rehearsal:** using the installed console commands and a scripted MCP client, a fresh synthetic ledger with `publication_limit: 0` completed discovery, reservation and submission with the exact report digest. After `stop`, discovery returned `stopped`; the contributor was then revoked and the listener stopped. The [operator's SQLite backup procedure](../operators.md#stop-back-up-recover-remove) was tested by restoring into a second private directory, offline. Both snapshots returned `integrity_check: ok`; the audit was identical, the contributor got `unauthorized`, and the maintainer still got `stopped`. No publisher was enrolled and the publication table remained empty. Audit: `initialized`, `task_added`, `enrolled`, `enrolled`, `claimed`, `submitted`, `stopped`, `revoked`. This does not test restoring a live publication or running an actual Antigravity session.
+
 ## Unassisted volunteer trial (not run)
 
 Use a fresh volunteer and a practice task that cannot publish. Before the trial, the operator prepares the local service, provides the verified wheel or installed bridge and port, and delivers the participant credential privately. Record whether the participant received an installed bridge or installed it themselves; do not combine the two cases. Give the volunteer only the [participant guide](../participants.md) and the invitation. With consent, observe without coaching and record time to first authenticated discovery, first submission and successful detachment, plus the exact step for any blockage or help request. Stop if the participant is asked to paste a credential or is offered real write access. Verify the submission and revocation in the audit. Record operator preparation and review time separately; the rehearsal above provides no human timing or success rate.
+
+**Antigravity with a prepared connector:** use a dedicated profile and a fresh `example/project` ledger with `publication_limit: 0`, only a contributor and maintainer, and no GitHub credentials or publisher. Use the `guide` task from the [operator rehearsal](../operators.md#rehearse-without-github), changing its title to `Check whether the kit pickup instructions agree`. Give the volunteer the task ID, issue #7, the exact fixture revision and the numbered excerpt below. Explain that the repository and revision are fictional; no browser visit, project command or fetch is needed. Start the participant clock after operator setup, and stop on missing tools instead of switching harnesses mid-trial. Do not use the live pilot's credential or port. Antigravity previously exposed its tools after restart; if a restart or configuration edit is still required once observation starts, record that as assistance. After the participant closes the session, the operator revokes access, removes only the practice connector and checks that the retired credential is refused. This measures use and handoff with a prepared connector, not self-installation.
+
+```text
+docs/guide.md
+1: Kit pickup begins at 09:00 on Saturday.
+2: Collect your kit at the library's west entrance.
+3: The pickup checklist directs volunteers to the east entrance.
+```
+
+**Record separately:** participant consent, installation mode, discovered task and revision, submitted digest (if any), participant exit, operator revocation, assistance and reasons for blockage. A supported report identifies the contradiction between lines 2 and 3 without guessing which entrance is correct. Record whether the audit has one `claimed` and one `submitted` event for `guide`, one contributor revocation, and no publication grant. Do not count operator cleanup as participant work.
 
 **Separate manual fallback (not run):** in a fresh chat with no Nexus connector or GitHub write access, give the volunteer the same invitation and a public issue, pinned revision and relevant excerpts. Do not give them the connector credential. Observe whether the chat explains that it cannot connect, asks for missing evidence and offers only an editable draft for human review. The chat must not say it reserved, submitted or validated work or post the draft. Compare the ledger audit before and after; the manual attempt must add no events. Record pass, unsafe behavior or blockage separately from connected onboarding. No successful fallback is implied by a successful connector test.

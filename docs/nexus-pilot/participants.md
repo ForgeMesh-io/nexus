@@ -8,6 +8,14 @@ Paste this into your AI chat. Do **not** paste the credential into the chat.
 
 If the chat has no usable Nexus tools (including a browser chat with no approved connector), use the last two sentences as the fallback. The maintainer decides whether and how to bring the draft into Nexus. Manual drafting has no lease and can duplicate someone else's work. No ChatGPT integration is claimed.
 
+## Antigravity practice session
+
+Use the dedicated Antigravity session prepared for the invitation. Check **MCP Servers** for `nexus`, then paste the prompt above. The first real check is that discovery returns the invited task; a server listed in the interface is not proof that access works. Compare the task and revision with your invitation before approving a reservation. In a practice session, use only the excerpt supplied with the invitation. Read the draft before approving submission, and note whether the assistant confirms it was accepted. Nothing is sent to GitHub by this practice session.
+
+If Nexus is absent, the result is `unauthorized`, or the task is different, stop and report what you see. Do not paste a credential, switch to another profile or approve a terminal command to make it work. To leave, close the dedicated Antigravity instance and ask the operator to revoke its access. The operator removes only the practice connector and checks that the retired credential no longer works.
+
+## Independent review
+
 An enrolled reviewer uses their own account. Read the exact report and independently check its stated evidence on the pinned revision. Use `review` with the returned digest, `pass` or `reject`, and a short explanation after you confirm the result. Do not review your own work or approve publication. A reviewer credential permits recording a decision, not writing to GitHub.
 
 ## Local setup reference for the operator
