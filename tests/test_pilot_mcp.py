@@ -11,6 +11,7 @@ from forgemesh.pilot import Pilot
 
 mcp = pytest.importorskip("mcp")
 BWRAP = pytest.mark.skipif(os.environ.get("NEXUS_TEST_BWRAP") != "1", reason="opt-in Linux OS boundary test")
+ISOLATED = pytest.param(True, marks=[BWRAP, pytest.mark.mcp_os_isolation])
 
 
 def bridge_command(ledger_path, isolated, *bridge_args):
@@ -30,7 +31,7 @@ def bridge_command(ledger_path, isolated, *bridge_args):
             ), str(ledger_path), *bridge_args]
 
 
-@pytest.mark.parametrize("isolated", [False, pytest.param(True, marks=BWRAP)])
+@pytest.mark.parametrize("isolated", [False, ISOLATED])
 def test_stdio_session_can_only_use_participant_api(tmp_path, isolated):
     ledger = Pilot(tmp_path / "pilot.db")
     ledger.initialize("example/project")
@@ -81,7 +82,7 @@ def test_stdio_session_can_only_use_participant_api(tmp_path, isolated):
             process.terminate()
 
 
-@pytest.mark.parametrize("isolated", [False, pytest.param(True, marks=BWRAP)])
+@pytest.mark.parametrize("isolated", [False, ISOLATED])
 def test_streamable_http_bridge_is_loopback_and_uses_each_callers_token(tmp_path, isolated):
     import socket
     import time

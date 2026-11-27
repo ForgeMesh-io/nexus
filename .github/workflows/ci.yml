@@ -23,6 +23,38 @@ jobs:
       - run: pip install --require-hashes --no-deps -r docker/requirements.lock
       - run: python -m pytest -q
       - run: python -m forgemesh check-config .
+      - name: Test MCP from the installed wheel
+        shell: bash
+        run: |
+          scratch=$(mktemp -d "$RUNNER_TEMP/nexus-wheel.XXXXXX")
+          python -I -m pip wheel --no-deps --wheel-dir "$scratch" .
+          wheels=("$scratch"/forgemesh_nexus-*.whl)
+          python -I -m venv "$scratch/venv"
+          cd "$scratch"
+          ./venv/bin/python -I -m pip install --require-hashes --no-deps -r "$GITHUB_WORKSPACE/docker/requirements.lock"
+          ./venv/bin/python -I -m pip install --only-binary=:all: "${wheels[0]}[mcp]"
+          ./venv/bin/python -I -m pip check
+          ./venv/bin/python -I - <<'PY'
+          from pathlib import Path
+          from sysconfig import get_path
+          import mcp
+          from forgemesh import pilot_mcp
+
+          for module in (mcp, pilot_mcp):
+              path = Path(module.__file__).resolve()
+              assert path.is_relative_to(Path(get_path("purelib")).resolve()), path
+              print(f"Testing installed {module.__name__}: {path}")
+          PY
+          # Bubblewrap variants require a separately configured host.
+          ./venv/bin/python -I -m pytest -v -rs --import-mode=importlib -p no:cacheprovider \
+            -m 'not mcp_os_isolation' --junitxml=mcp.xml "$GITHUB_WORKSPACE/tests/test_pilot_mcp.py"
+          ./venv/bin/python -I - <<'PY'
+          from xml.etree.ElementTree import parse
+
+          cases = parse("mcp.xml").findall(".//testcase")
+          if not cases or any(case.find("skipped") is not None for case in cases):
+              raise SystemExit("Expected MCP tests to run without skips or expected failures")
+          PY
       - name: actionlint
         run: |
           curl -fsSL -o /tmp/al.tgz https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz

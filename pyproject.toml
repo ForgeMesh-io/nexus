@@ -23,3 +23,6 @@ include = ["forgemesh*"]
 
 [tool.setuptools.package-data]
 forgemesh = ["schemas/*.json"]
+
+[tool.pytest.ini_options]
+markers = ["mcp_os_isolation: MCP test variant that requires a configured Bubblewrap host"]
