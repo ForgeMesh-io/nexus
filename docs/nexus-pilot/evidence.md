@@ -71,6 +71,8 @@ With a fresh home and project containing `mcp.servers.nexus`, `opencode api --st
 
 **Antigravity (Gemini) attempt:** `agentapi` needs `ANTIGRAVITY_LS_ADDRESS` and `ANTIGRAVITY_CSRF_TOKEN`; it failed without them. Using the running hub's address and token file, a new conversation (Antigravity 2.35.2) answered `NO_NEXUS_TOOLS`. Its metadata showed `launchedMcpServers: []` although `~/.gemini/config/mcp_config.json` now declares a stdio `nexus` server. The same server entry listed four tools and returned `relinker-docs` through an MCP SDK client. Likely cause, not verified: the app was already running when the file was written. Next check: restart Antigravity by hand and confirm the server under **MCP Servers** before rerunning the turn. After the app restarted, a second probe listed `discover` and `claim` under `nexus` (the conversation metadata still shows `launchedMcpServers: []`, so that field is not a reliable signal).
 
+**Separate [retrospective metering check](rehearsals/antigravity-metering.md):** 14 report and 16 patch generation records contain matching local usage across three views of each response. Complete attempt accounting, pre-dispatch budget limits and provider stop at the deadline were not demonstrated. Neither run qualifies Antigravity for the matched-budget comparison.
+
 **Real agent contribution (observed, 2026-11-26):** an Antigravity 2.35.2 agent running `gemini-4-hydrogen-tiered-high` ("Gemini 4 Hydrogen (High)", read from the conversation's generation metadata) received the [participant prompt](participants.md), driven through `agentapi`. It then:
 
 1. Called the real `nexus.discover` tool, which returned the `relinker-docs` task.

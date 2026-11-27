@@ -1,0 +1,20 @@
+# Antigravity metering: retrospective check
+
+**Not qualified for the [matched-budget comparison](three-arm.md#runs-and-ceilings).** This read-only review used two existing Antigravity 2.35.2 conversations with `gemini-4-hydrogen-tiered-high`: the [live report and rejected patch rehearsal](../evidence.md#live-gate). Neither ran under the comparison budget. No new inference, cancellation request or access to frozen task inputs was needed.
+
+| Existing conversation | Saved generation rows / distinct `request_id` values | Raw `input_tokens` | Raw `cache_read_tokens` | Raw `output_tokens` (thinking + response) |
+| --- | ---: | ---: | ---: | ---: |
+| Live `relinker-docs` report | 14 / 14 | 111,471 | 352,148 | 10,904 (6,701 + 4,203) |
+| `build-doc` patch rehearsal | 16 / 16 | 153,624 | 555,028 | 22,434 (17,260 + 5,174) |
+
+Each saved generation has a usage record that matches one step usage record and one nested `retry_infos` usage record on counters and the three stored message/response ID fields. No retry error or reason was stored in those nested entries. Counting the three views separately would duplicate the same usage; the field name `retry_infos` does not prove a second request. In all 30 rows the thinking and response counts sum to `output_tokens`. Keep cached input separate: the local schema names the counters, but does not establish how to normalize them to inclusive provider totals or settle charges. Do not interpret an absent field or failed receipt as zero provider usage.
+
+| Required control | What the existing records establish |
+| --- | --- |
+| Count every model and tool attempt, including failures, hidden retries and auxiliary calls | The observed generation and step records agree. They are views from the same client store, not an independent dispatch or provider ledger. Neither the rows nor the scoped logs establish completeness or a total for attempted tool calls. |
+| Enforce token and cost ceilings before dispatch | None of the 30 records contains `completion_config.max_tokens`; these are retrospective counters, not evidence of admission control. No inclusive provider receipts or final cost reconciliation were established. |
+| Stop at deadline and reconcile in-flight usage | All saved steps have `DONE` status (39 and 43 steps). Neither run exercised an enforced deadline. The shipped binary contains a `CancelCascade` descriptor, but this proves neither client cutoff, provider termination, nor final usage after an interruption. The installed `agentapi --help` lists metadata, new conversation and send-message, not a cancellation command. |
+
+**Recheck without exposing transcripts:** open only the two known conversation databases in SQLite read-only mode. Query `SELECT idx, data FROM gen_metadata ORDER BY idx` and `SELECT step_type, status, metadata FROM steps ORDER BY idx`. Decode the blobs locally with `protoc --decode_raw`; emit only aggregate counts and boolean matches. For the installed language-server binary (SHA-256 `7107d71fd2b7784c2715aa1789222b59903f44039bfddd3c405a3f746d7e67a3`), embedded descriptors map `ChatModelMetadata` to field `1` in the generation and its primary usage to `1.4`, nested usage to `1.17.2`, and max tokens to `1.15.2`. `CortexStepMetadata.model_usage` is field `9`. The `ModelUsageStats` counter fields are `2, 3, 4, 5, 9, 10` (input, output, cache write, cache read, thinking output, response output); match IDs in fields `7, 11, 12` locally without exporting them. These are observations for that build, not a supported telemetry interface.
+
+Keep Antigravity as an onboarding client. For comparison qualification, first identify a trusted pre-dispatch meter and an independent final usage source. Only after cost approval, use a short fictional input to test a limit refusal, account for a failed attempt, and distinguish stopping the client from stopping the provider and settling in-flight usage. If a deadline produces a late response, exclude its output but retain known usage. Unknown usage or a budget overrun leaves the block unscored. Do not open the frozen inputs for qualification.
