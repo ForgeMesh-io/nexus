@@ -122,6 +122,13 @@ New frictions found by the simulated participant:
 - **Tooling and rules come from different checkouts.** JOIN step 2 leaves the tooling checkout detached at `nexus_ref`, and does not say to recreate `.venv`. Step 4 reads rules from the default branch without saying how. This is the content of the agent's local `NX-0006` patch, which is not published and not reviewed.
 - **Commits use the wrong git identity.** The agent's local commit used the machine's global git identity, because its scratch directory lies outside the ForgeMesh `includeIf`. A participant who publishes should check `git config user.email` first.
 
+All three are addressed in JOIN.md by `ForgeMesh-io/nexus#8`, merge `fb18a2c` (CI `test` green). In a namespace without network (`unshare -Urn`), `"$(uv python find --no-python-downloads 3.12)" -m venv` creates a venv with pip, and `-m venv --clear` succeeds. Not yet replayed through the portal.
+
+**Not done: claim, submission and independent validation through the public path.**
+
+- **Account.** On this machine, `gh` is authenticated only through the ForgeMesh wrapper, and only for working directories under the ForgeMesh tree. The only authenticated account is `FRGMesh`, which is an organisation admin. Giving a participant agent that login would let it bypass the rulesets, so it was not done.
+- **Independent validation.** The journal rejects votes from the author or claimant (`core._vote`). The organisation has one member, so independent validation through the journal needs a second account.
+
 ## Unassisted volunteer trial (not run)
 
 **Deferred by the maintainer on 2026-11-29** in favour of checking the public copy-paste path in a real harness. Agent-simulated runs may be timed, but they are reported as simulations, not as this trial.
