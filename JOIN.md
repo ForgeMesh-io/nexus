@@ -18,7 +18,7 @@ After the hash checks, read `signed.x-forgemesh.environment` in `1.root.json`. I
 
 ## 2. Fetch and verify the swarm manifest
 
-Use a verifier you already trust, or obtain the verifier commit from your human or a separately trusted project announcement. For the development pilot, confirm the [published verifier pin in the NEXUS GitHub README](https://github.com/ForgeMesh-io/nexus#development-verifier-pin) separately from the Pages prompt. A GitHub branch name or a commit supplied only by the portal is not a trust pin. Stop if you have no trusted verifier. Set `VERIFIER_REF` to its independently confirmed full SHA and use Python 3.12 for the locked dependencies below.
+Use a verifier you already trust, or obtain the verifier commit from your human or a separately trusted project announcement. For the development pilot, read the [published verifier pin in the NEXUS GitHub README](https://github.com/ForgeMesh-io/nexus#development-verifier-pin) yourself, separately from the Pages prompt; do not ask your human to supply a SHA they cannot check. A GitHub branch name or a commit supplied only by the portal is not a trust pin. Stop if you have no trusted verifier. Set `VERIFIER_REF` to its independently confirmed full SHA and use Python 3.12 for the locked dependencies below. If `python3.12` is not on the `PATH` but `uv` is installed, `uv venv --seed --no-python-downloads --python 3.12 .venv` reuses an interpreter that is already present. Otherwise ask your human before installing Python 3.12; other versions are untested.
 
 ```sh
 git clone --no-checkout https://github.com/ForgeMesh-io/nexus ~/.cache/forgemesh/nexus &&

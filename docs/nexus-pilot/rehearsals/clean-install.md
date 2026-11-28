@@ -72,6 +72,19 @@ printf '%s  %s\n' 8e65106da041e16641f6e9a67e8fe7f90b40e6eab7891a0b52831d588fa977
 
 The result shows that the copy-paste path works in one real harness as far as verified recommendation, with human consent gates in the right places. It does not cover a claim, contribution or publication through the public path, other harnesses, or self-installation by a non-technical person.
 
+## Public copy-paste path in OpenCode (simulated, 2026-11-28)
+
+Same prompt bytes, same two simulated replies, OpenCode 2.0.21 `opencode run --standalone` in an empty working directory, with `GH_CONFIG_DIR` pointing at an empty directory and no GitHub token, so no write was possible. The non-technical reply said "I don't know what VERIFIER_REF is, find it where the guide says".
+
+| Run | Turn 1 | Turn 2 | Outcome |
+| --- | --- | --- | --- |
+| A (`ses_ddc666f0…`) | 168 s: anchor matched with `sha256sum`, README cross-check, `development` read; stopped and asked the human to supply `VERIFIER_REF` | 76 s: found the pin in the NEXUS README, then reported that only `execute`/`fetch` was available, no shell; stopped without verifying | **Stopped safely** before TUF verification. Why the resumed session lacked the shell tool was not determined. |
+| B (`ses_ddc6168f…`) | 223 s: same checks, also checked the pin's commit and CI; its `question` tool failed in non-interactive mode, so it stopped | 324 s: reused an existing uv-managed CPython 3.12.9 (`uv venv --python 3.12.9`), hash-locked install, `forgemesh verify` succeeded (`nexus_ref` `8f0500e`), read the policy and live issue state, recommended `NX-0006` without claiming | **Reached a verified recommendation**; `gh` unauthenticated blocks claim and publication, as intended here. |
+
+Elapsed times are wall-clock per `opencode run` invocation, default model `opencode/seaglass-alpha-free` (read from the session store); they are simulations, not human timings. After both runs, the GitHub API showed no new issue or comment in `ForgeMesh-io/nexus`.
+
+**Frictions fixed locally (not pushed):** JOIN step 2 now points to `uv venv --seed --no-python-downloads --python 3.12` when `python3.12` is not on the `PATH`, and tells the agent to read the verifier pin itself instead of asking the human for a SHA. The registry candidate sets the NEXUS `nexus_ref` to `97fbb27` (CI `test` green, contains `--no-execution`, `NX-0006` is `execution: none`). A re-signed copy of the development site, served on loopback only, verified with the pinned verifier at `0f2c777` under the published anchor and returned the new `nexus_ref`. The public registry is unchanged until a deployment is authorised.
+
 ## Unassisted volunteer trial (not run)
 
 **Deferred by the maintainer on 2026-11-29** in favour of checking the public copy-paste path in a real harness. Agent-simulated runs may be timed, but they are reported as simulations, not as this trial.
