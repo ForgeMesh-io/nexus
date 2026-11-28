@@ -208,6 +208,8 @@ The runner returns known input/output totals and their cached/reasoning subsets 
 
 Obtain consent before timing people or collecting identifiers. Use a reviewer who did not generate, facilitate, or view any run. The operator assigns opaque report IDs, randomizes the complete batch (pre-register the seed privately), removes envelope metadata and coordination self-identifiers without changing claims, and withholds the ID → arm/run map until the reviewer locks all scores. Show opaque report ID, task ID, report text, and pinned evidence only. Save guesses at attribution or accidental unblinding before reveal. Do not allow an agent to grade its own output.
 
+Before handoff, compare edited reports with their originals. Delete only attribution text that can be removed without changing a claim, its qualifiers, or its evidence. Keep exact citations and cited quotes, even if a source name happens to match an arm name. If a claim, citation or evidence genuinely discloses an arm, or the effect of a deletion is uncertain, keep the original and reason in the private operator record. Hold the affected matched block from blinded scoring; record the deviation and retain all reports and resource records. Do not score a reduced batch or count a withheld report as a rejection or a timeout.
+
 Allow **3 active minutes per report**, at most **12 reviewer minutes per arm**. Allow **8 additional active operator/maintainer minutes per arm** for run-specific setup, intake, questions, coordination overrides and cleanup; count shared setup and study administration separately. Stop instead of borrowing time from other runs. Unreviewed due to timeout is `unreviewed`, never `pass`. Use this sheet for each report:
 
 | Field | Pass condition / value |
@@ -237,3 +239,17 @@ rmdir "$scratch"
 The rehearsal generates four invented reports about one fictional exhibit, with the same task ID and evidence across all reports. A network-isolated scripted reviewer receives only the shuffled, opaque packet; its filesystem has `/usr` for Python and no access to the operator directory. It fills the four criteria and exercises `pass`, `reject` and `unreviewed`. The negative control injects the arm map into the packet and is refused before evaluation. The operator hashes the completed decision sheet before joining the fixture map and verifies that the join leaves the sheet unchanged. The separate effort logs survive the join, including time spent on the `unreviewed` report, shared setup, explicit zero and missing time. The seconds are invented and only test record handling. This checks the handoff and rubric structure, not human independence, usability, the ability to infer attribution from real prose, or the artifact lock for the scored trial. The frozen manifest, historical outputs and live ledgers are outside this rehearsal.
 
 **Observed:** three independent batches passed, including the three rejected leak controls. Verification stdout SHA-256: `713ed2881c888a6442adf3ef147bcb727ca792cd8ca222be31f05efa95241b3b`.
+
+### Synthetic attribution rehearsal (unscored)
+
+From the repository root, run the [six-report fixture](blind-attribution-fixture.py) on Linux with Bubblewrap. The interpreter sees the fixture and `/usr`; it does not see the checkout, the frozen pools or the network.
+
+```sh
+bwrap --unshare-net --clearenv --ro-bind /usr /usr --symlink usr/lib /lib64 \
+  --ro-bind "$PWD/docs/nexus-pilot/rehearsals/blind-attribution-fixture.py" /fixture.py \
+  -- /usr/bin/python3 -I -B /fixture.py
+```
+
+Two operator edits removed a byline and an inline credit. The resulting report text matched the expected claims and citations byte for byte. An unedited venue name (`Nexus Room`) also matched byte for byte. Three reports were held out of the fixture packet: an arm-specific citation path, a claim about which arm had seen an updated source, and a worker reference whose deletion could change the claim. These are examples of operator decisions, not an automatic detector or a test of what a human reviewer could infer from style or content.
+
+**Negative control:** changing the edited byline report's citation from line 4 to line 5 failed the exact-text check.
