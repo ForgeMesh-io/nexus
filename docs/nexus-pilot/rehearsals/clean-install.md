@@ -83,6 +83,16 @@ Same prompt bytes, same two simulated replies, OpenCode 2.0.21 `opencode run --s
 
 Elapsed times are wall-clock per `opencode run` invocation, default model `opencode/seaglass-alpha-free` (read from the session store); they are simulations, not human timings. After both runs, the GitHub API showed no new issue or comment in `ForgeMesh-io/nexus`.
 
+**Why run A lost the shell (diagnosed).** The session store shows that every resumed `opencode run` turn starts with a system notice "The Code Mode tool catalog has changed. This catalog supersedes the previous Code Mode tool catalog" (4,233 and 19,587 bytes, identical in both runs). The notice lists only MCP tools reached through `execute` and does not mention the direct tools. In run A, the model read "supersedes" as covering every tool. Its reasoning says "No shell [...] The system says no", and it never attempted the call. Run B received the same notices and kept using `shell`. Forks of run A confirmed that the shell was still registered:
+
+- asked to list its direct tools, the fork named `shell`, `read`, `execute` and others;
+- asked to call `shell`, it refused ("`shell` n'est pas disponible dans le catalogue actuel");
+- told that the Code Mode catalog covers only `execute` tools, it ran `echo shell-ok`.
+
+This is a model misreading of a harness notice; Nexus did not remove a capability. Workaround for operators: avoid MCP servers whose catalog changes between turns in participant sessions, or start a new session rather than resuming. The participant guide does not need to change.
+
+**Other harnesses:** Codex CLI 0.172.0 (`codex exec`, user config ignored) and Claude Code 2.1.332 (`claude -p`, no MCP) both stopped before the first model turn because their saved logins had expired. Re-authentication is a maintainer step; neither harness was tested.
+
 **Frictions fixed locally (not pushed):** JOIN step 2 now points to `uv venv --seed --no-python-downloads --python 3.12` when `python3.12` is not on the `PATH`, and tells the agent to read the verifier pin itself instead of asking the human for a SHA. The registry candidate sets the NEXUS `nexus_ref` to `97fbb27` (CI `test` green, contains `--no-execution`, `NX-0006` is `execution: none`). A re-signed copy of the development site, served on loopback only, verified with the pinned verifier at `0f2c777` under the published anchor and returned the new `nexus_ref`. The public registry is unchanged until a deployment is authorised.
 
 ## Unassisted volunteer trial (not run)
