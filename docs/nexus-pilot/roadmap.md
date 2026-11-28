@@ -13,6 +13,8 @@
 
 ## Next in order
 
+The [release readiness audit](research.md#release-readiness-audit-2026-11-28) separates the live development directory from the local pilot and records the artifact rebuild. The human trial is one gate; final artifact provenance, public onboarding checks, and comparative value evidence remain separate.
+
 1. **Make the alpha usable without an operator typing the participant's answers.** Use the [clean installation and withdrawal checklist](rehearsals/clean-install.md) to observe a consenting volunteer independently complete the participant steps. Do not make an internet-facing service a prerequisite for testing a supported local harness.
 2. **Measure whether coordination is worth it.** Use the [frozen three-arm protocol](rehearsals/three-arm.md). A zero-output arm stays in the results. Report simulation, load tests, and real use separately. Avoid changes to agent count or admission based on an unmeasured productivity claim.
 
