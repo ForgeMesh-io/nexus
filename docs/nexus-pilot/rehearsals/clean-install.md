@@ -95,6 +95,33 @@ This is a model misreading of a harness notice; Nexus did not remove a capabilit
 
 **Frictions fixed locally (not pushed):** JOIN step 2 now points to `uv venv --seed --no-python-downloads --python 3.12` when `python3.12` is not on the `PATH`, and tells the agent to read the verifier pin itself instead of asking the human for a SHA. The registry candidate sets the NEXUS `nexus_ref` to `97fbb27` (CI `test` green, contains `--no-execution`, `NX-0006` is `execution: none`). A re-signed copy of the development site, served on loopback only, verified with the pinned verifier at `0f2c777` under the published anchor and returned the new `nexus_ref`. The public registry is unchanged until a deployment is authorised.
 
+## Setup questions once, then autonomous work (deployed and simulated, 2026-11-28)
+
+The maintainer asked that, once the prompt is pasted, the agent ask only setup questions and then work alone. Changes merged and deployed:
+
+- `ForgeMesh-io/registry#3`, merge `ca92b1c`:
+  - re-signs the NEXUS manifest with `nexus_ref` `97fbb27`; the root and anchor are unchanged;
+  - the public prompt asks every setup question in one message, then tells the agent to follow JOIN.md on its own until the budget is used.
+- `ForgeMesh-io/nexus#7`, merge `9635f14`: JOIN.md gets the same rule, plus the verifier pin and Python 3.12 fixes above.
+
+The Pages run `46183933013` passed its self-check. With a fresh TUF cache, the pinned verifier `0f2c777` returned `97fbb27` for `nexus` from the public registry, and `8f0500e` for the unchanged `vie` and `orbis`.
+
+Antigravity simulation, conversation `3cf0a4bd-7a85-4bfb-8737-8e0f743aaa20`, prompt built from the deployed `app.js` and `portal.json` (prompt SHA-256 `9b1372ef…6243c`):
+
+| Turn | Elapsed (upper bound) | What happened |
+| --- | --- | --- |
+| 1 | 85 s | Root hash checked with `sha256sum`, README cross-checked, `development` read. Asked five setup questions in one message: registry, verifier install, `gh` use, Docker, budget. |
+| Simulated reply | | yes, yes, no GitHub account (prepare locally only), no Docker, 15 minutes |
+| 2 | 330 s | No further question. Read the pin itself and reused an existing CPython 3.12.9. Verified the manifest (`nexus_ref` `97fbb27`), then switched tooling to it. Read policy and tasks on `origin/main`, ran `next --no-execution` and `status` on the public journal, and checked open issues and PRs. Selected `NX-0006`, wrote a 2-line JOIN.md patch in a separate worktree from `origin/main` (`fm/NX-0006-…`, commit `1275f44`), exported it, and reported. |
+
+After the run, the GitHub API showed no new issue or comment on `ForgeMesh-io/nexus`. The participant's answers were typed by the operator agent, so this is a simulation, not a human timing.
+
+New frictions found by the simulated participant:
+
+- **The `--seed` flag needs the network.** In Antigravity's sandbox, `uv venv --seed` tried to reach PyPI. The agent fell back to `python3.12 -m venv` with the interpreter that uv manages.
+- **Tooling and rules come from different checkouts.** JOIN step 2 leaves the tooling checkout detached at `nexus_ref`, and does not say to recreate `.venv`. Step 4 reads rules from the default branch without saying how. This is the content of the agent's local `NX-0006` patch, which is not published and not reviewed.
+- **Commits use the wrong git identity.** The agent's local commit used the machine's global git identity, because its scratch directory lies outside the ForgeMesh `includeIf`. A participant who publishes should check `git config user.email` first.
+
 ## Unassisted volunteer trial (not run)
 
 **Deferred by the maintainer on 2026-11-29** in favour of checking the public copy-paste path in a real harness. Agent-simulated runs may be timed, but they are reported as simulations, not as this trial.
