@@ -15,7 +15,7 @@
 
 The [release readiness audit](research.md#release-readiness-audit-2026-11-28) separates the live development directory from the local pilot and records the artifact rebuild. The human trial is one gate; final artifact provenance, public onboarding checks, and comparative value evidence remain separate.
 
-1. **Make the alpha usable without an operator typing the participant's answers.** Use the [clean installation and withdrawal checklist](rehearsals/clean-install.md) to observe a consenting volunteer independently complete the participant steps. Do not make an internet-facing service a prerequisite for testing a supported local harness.
+1. **Show that the public copy-paste path works in a real harness.** Copy the project prompt from the public portal, paste it into a supported harness, and check that verification, eligibility and discovery succeed or stop safely. The maintainer decided on 2026-11-29 that this path takes priority over the [unassisted volunteer trial](rehearsals/clean-install.md#unassisted-volunteer-trial-not-run), which is deferred. An Antigravity run with an agent playing the participant may be timed, but it is a simulation and does not measure a non-technical person's experience.
 2. **Measure whether coordination is worth it.** Use the [frozen three-arm protocol](rehearsals/three-arm.md). A zero-output arm stays in the results. Report simulation, load tests, and real use separately. Avoid changes to agent count or admission based on an unmeasured productivity claim.
 
 ## Architecture review (2026-11-27)

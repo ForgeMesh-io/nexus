@@ -62,6 +62,8 @@ printf '%s  %s\n' 8e65106da041e16641f6e9a67e8fe7f90b40e6eab7891a0b52831d588fa977
 
 ## Unassisted volunteer trial (not run)
 
+**Deferred by the maintainer on 2026-11-29** in favour of checking the public copy-paste path in a real harness. Agent-simulated runs may be timed, but they are reported as simulations, not as this trial.
+
 Before starting either path, confirm which non-technical volunteer explicitly consented to being observed in both sessions. They may stop at any time. Observe without coaching and note the step of any blockage or help request. Stop if the volunteer is asked to paste a credential or is offered real write access. **Do not time the participant by default.** Only with separate explicit consent to timing, measure elapsed time from the start of the participant's turn, after preparation, to the applicable milestones (authenticated discovery, submission and exit for the connected path; draft and exit for the manual path). Without timing consent, record only whether the milestones were reached; do not infer participant durations from logs. Keep any operator preparation and review times separate.
 
 **Shared practice fixture:** use `example/project`, task `guide` (`Check whether the kit pickup instructions agree`), fictional issue `#7`, revision `bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb` and the numbered `docs/guide.md` excerpt below for both paths. Give the volunteer the [participant guide](../participants.md), the invitation and this fixture. All project material is supplied in the invitation; no GitHub lookup, project command or fetch is needed. Use a separate fresh local ledger for each path, each with `publication_limit: 0`, no publisher and no GitHub credentials. Neither path publishes anything.
