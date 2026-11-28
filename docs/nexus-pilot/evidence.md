@@ -28,6 +28,8 @@
 
 **2026-11-28 readiness recheck:** the [public surface audit and local rebuild](research.md#release-readiness-audit-2026-11-28) confirm the development portal and reproduce the recorded `f84084a` wheel hash. Release remains on hold; see the recorded limits and next gates.
 
+**Synthetic storage load:** the [SQLite contention and verified restore rehearsal](research.md#sqlite-contention-and-verified-restore-2026-11-28) measures the installed ledger directly at fixed workload and zero publication quota. It is evidence for the pilot's single-host storage decision, separate from usability, hosted-client integration and the blinded comparison.
+
 Use Linux, Python 3.12+, the optional MCP extra, and an environment with pytest. To reproduce all acceptance cases, also have `ip`, `unshare`, `bwrap`, `sqlite3`, `curl`, OpenCode and Codex. The `uv --offline` steps require the build environment and wheels already in the local cache. Use a disposable Linux VM instead if unprivileged user namespaces are disabled. Run with synthetic inputs; no GitHub or model credentials are used.
 
 ```sh

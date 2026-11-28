@@ -222,6 +222,36 @@ NotebookLM identified the ToolSandbox abstract's discussion of state dependencie
 
 **Evidence custody.** The previous temporary worktrees and run artifacts were unavailable when resuming. Committed revisions and the live comment were verified; this audit does not recreate the missing uncommitted work or give the historical simulated trials new evidence credit. Keep the frozen tasks closed and existing outcomes intact. Before a public release, verify the intended artifact, obtain explicit release approval, and close the remaining usability, maintainer feedback and blinded matched-budget evidence gates. Hosted MCP and production portal trust require their own proof before either is advertised.
 
+### SQLite contention and verified restore (2026-11-28)
+
+**Question.** How much do overlapping writes delay the installed pilot on one host, and how long does it take to restore and verify a stopped ledger of the same size? The existing [operator procedure](operators.md#stop-back-up-recover-remove) stops the pilot before making a snapshot; the recovery measurement starts from that snapshot after the writers finish.
+
+**Method.** [Run the rehearsal](rehearsals/sqlite-load.py) with the installed `f84084a` wheel. Each profile uses five fresh `example/project` ledgers with the same 30 tasks and 8 KiB reports, `active_limit=30`, and `publication_limit=0`. Each thread uses the installed `Pilot` methods for discovery and for five write attempts per task: claim, submit, independent-role review, a quota-refused authorization, and decline. A barrier releases each wave together. SQLite uses its normal busy handler, with no application-level retries; an unexpected error fails the run. These threads model simultaneous calls, with distinct contributor owners and shared fixture reviewer and maintainer roles.
+
+Run with the installed interpreter and a fresh private directory on the intended local disk (the default temporary directory may be RAM-backed):
+
+```sh
+umask 077
+scratch=$(mktemp -d /path/on/local/disk/nexus-load.XXXXXX)
+unshare -Urn /path/to/venv/bin/python -I -B docs/nexus-pilot/rehearsals/sqlite-load.py "$scratch"
+rmdir "$scratch"
+```
+
+The rehearsal times the real `BEGIN IMMEDIATE` call using a connection subclass. That includes SQLite's lock wait and call overhead. Wall time for the whole ledger call includes database open, lookup, SQL, and commit or rollback; it excludes the barrier and transport. The loopback HTTP API uses a serial `HTTPServer`; this rehearsal exercises contention in the shared ledger beneath the API, not HTTP throughput. NotebookLM's SQLite isolation summary was cross-checked against SQLite's [transaction documentation](https://www.sqlite.org/lang_transaction.html#deferred_immediate_and_exclusive_transactions) and [rollback locking description](https://www.sqlite.org/lockingv3.html#writing_to_a_database_file): getting the writer slot is distinct from acquiring the exclusive lock for commit in rollback mode. Neither timing is pure lock wait or a hosted-client response time. Backup and restore use [SQLite's backup API](https://www.sqlite.org/backup.html) and time verification separately from the load; restore includes creation of a new directory, the copy, integrity and audit comparison, permission checks, and a report read.
+
+**Observed.** Installed Nexus `0.1.0a1`, CPython `3.12.9`, SQLite `3.47.1`, rollback journal mode `delete`, Linux, ext4 on local NVMe, network isolated. The file sizes were 348,160–352,256 bytes. Timing is in milliseconds, pooled across five ledgers per profile for writes (nearest-rank percentiles); backup and restore each have five observations per profile. Run stdout SHA-256: `e32b556917fb911e20ca53bcf829d18c697fbdbe3e692229986b39f46b5fa899`.
+
+| Simultaneous threads | Write attempts | `BEGIN IMMEDIATE` p50 / p95 / p99 / max | Ledger call p50 / p95 / p99 / max | Verified backup median / max | Verified restore median / max |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 750 | 0.022 / 0.050 / 0.086 / 0.228 | 36.065 / 52.205 / 86.210 / 391.983 | 48.188 / 56.677 | 55.797 / 56.933 |
+| 2 | 750 | 0.100 / 53.717 / 54.615 / 103.723 | 43.811 / 103.664 / 119.422 / 172.135 | 47.358 / 109.702 | 51.598 / 102.921 |
+| 6 | 750 | 19.337 / 104.102 / 129.000 / 229.312 | 34.835 / 114.089 / 148.808 / 287.269 | 15.995 / 21.165 | 16.991 / 21.982 |
+| 30 | 750 | 430.316 / 2133.192 / 2333.303 / 2632.861 | 443.431 / 2148.089 / 2345.998 / 2648.259 | 13.009 / 13.777 | 15.166 / 16.042 |
+
+All 20 ledgers and restores passed: 2,400 state-changing calls, 600 expected quota refusals, no unexpected SQLite errors, no publication rows, exact audit equality, integrity `ok`, and preserved stop and revocation. The existing ledger and CLI tests passed separately (`26 passed`).
+
+**Decision.** Keep [ADR 001](adr-001-coordination.md) for the small local pilot. The default two-slot policy is a work-admission limit, not a limit on simultaneous requests. At two concurrent calls the measured p95 was 104 ms; at 30, acquiring the writer slot alone took about 2.13 s at p95. The latter is a reason to profile request bursts and constrain admission before raising concurrency, with an agreed response-time budget before deployment. Backup and restore were measured after quiescence and profiles ran in ascending order; the faster later restores do not establish a concurrency benefit. This checks one small fixture and one disk, and does not measure long-running read contention, sustained arrivals, process restart or power-loss recovery, or restoration from off-host storage. No service-level budget has been approved and the release decision remains on hold.
+
 ## Round 19 — 2026-11-26: context admission is not usable context
 
 NotebookLM pointed to [*Lost in the Middle*](https://arxiv.org/abs/2307.03172): evidence position can change retrieval and QA accuracy within the same context limit. That study does not measure concurrent serving or per-request usage. The pinned llama.cpp [server documentation](https://github.com/ggml-org/llama.cpp/blob/8f83d6c/tools/server/README.md#post-completion-given-a-prompt-it-returns-the-predicted-completion) also distinguishes the requested generation limit from the actual count, which may overshoot on a partial multibyte character. The [engine's no-shift guard](https://github.com/ggml-org/llama.cpp/blob/8f83d6c/tools/server/server-context.cpp#L1608-L1616) is a separate capacity check. The concurrent probe therefore measures preflight admission, actual generation and receipt attribution separately, while testing whether each worker can cite its permitted excerpt. A single fact followed by inert padding cannot establish positional robustness or replace OS isolation tests.
