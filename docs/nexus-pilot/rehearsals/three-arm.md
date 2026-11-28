@@ -206,7 +206,7 @@ The runner returns known input/output totals and their cached/reasoning subsets 
 
 ## Blind review and analysis (assessor/operator only)
 
-Obtain consent before timing people or collecting identifiers. Use a reviewer who did not generate, facilitate, or view any run. The operator assigns opaque report IDs, randomizes the complete batch (pre-register the seed privately), removes envelope metadata and coordination self-identifiers without changing claims, and withholds the ID → arm/run map until the reviewer locks all scores. Show task ID, report text, and pinned evidence only. Save guesses at attribution or accidental unblinding before reveal. Do not allow an agent to grade its own output.
+Obtain consent before timing people or collecting identifiers. Use a reviewer who did not generate, facilitate, or view any run. The operator assigns opaque report IDs, randomizes the complete batch (pre-register the seed privately), removes envelope metadata and coordination self-identifiers without changing claims, and withholds the ID → arm/run map until the reviewer locks all scores. Show opaque report ID, task ID, report text, and pinned evidence only. Save guesses at attribution or accidental unblinding before reveal. Do not allow an agent to grade its own output.
 
 Allow **3 active minutes per report**, at most **12 reviewer minutes per arm**. Allow **8 additional active operator/maintainer minutes per arm** for run-specific setup, intake, questions, coordination overrides and cleanup; count shared setup and study administration separately. Stop instead of borrowing time from other runs. Unreviewed due to timeout is `unreviewed`, never `pass`. Use this sheet for each report:
 
@@ -216,8 +216,24 @@ Allow **3 active minutes per report**, at most **12 reviewer minutes per arm**. 
 | Correct | Check the material assertions against the pinned files; record any incorrect or unsupported assertion and whether it changes the recommended action. |
 | Traceable | At least one exact path plus a matching line range or quote for each material claim; comments about runtime or CI beyond the snapshot are qualified. |
 | Actionable | Gives a concrete decision or change the maintainer can use, including a well-supported reason not to act. A restatement with no usable recommendation is not enough. |
-| Outcome | `pass` only if all four pass, otherwise `reject`, or `unreviewed` at time cap. Record reason, active seconds and a short canonical label for the corrective action or no-op decision. |
+| Outcome | `pass` only if all four pass, otherwise `reject`, or `unreviewed` at time cap. Record the reason and a short canonical label for the corrective action or no-op decision. |
+
+Keep effort outside the rubric. With separate consent to timing, record active reviewer seconds by opaque report ID in a separate log, including time spent on an `unreviewed` report. Keep operator/maintainer time in an operator-only log by run and activity, with shared setup and study administration in their own section. Preserve missing durations as unknown, distinct from measured zero. After the reviewer locks the decisions and attribution notes, use the private map to attach both effort logs to runs. Keep quality outcomes and time as separate measures.
 
 Reference checks (not an exhaustive answer key): `configure-relinker` preserves `build-relinker`, separate full-build directory, and submodule distinction. `register-python-tests` preserves Python 3.9 vs 3.11, configure-time discovery and the documented CTest enumeration/`input_magic` check. `select-tests` distinguishes header dependencies after a full build from selection; verify at least one stated full-run trigger and do not assume the optional `select.ninja` exists. `web-release` distinguishes main from release publication and checks that the converter ZIP and both native archives are selected from the same release/tag/commit. Do not require identical wording or reject a verified alternate finding for not matching the key.
 
 Before unblinding, group equivalent accepted recommendations under the same canonical label even across different tasks: two wordings of one correction count once per run. Then report paired per-pool differences for Nexus vs **both** baselines: unique accepted outcomes, task coverage, duplicated starts (successful starts beyond the first per task per run), overlapping accepted reports, refusals by reason, corrections after review, interruptions, actual resources and active human minutes. Keep all runs, including partial runs and zeros, with their stop reason. A positive pilot signal requires no safety violation or missing budget evidence, at least one accepted outcome overall for Nexus, no loss of unique accepted outcomes in either pool against either baseline, and either strictly more unique accepted outcomes or fewer active human minutes in at least one pool against each baseline. Disclose additional spend, latency and tradeoffs rather than collapsing them into a score. Two pools are descriptive, not a population estimate or release proof. No advantage or a disproportionate human burden leaves no-agent operation available.
+
+### Synthetic rubric and effort rehearsal (unscored)
+
+Run on Linux with Bubblewrap and a system Python under `/usr`, using a fresh private directory outside `/usr`:
+
+```sh
+scratch=$(mktemp -d)
+/usr/bin/python3 -I -B docs/nexus-pilot/rehearsals/blind-review-fixture.py "$scratch"
+rmdir "$scratch"
+```
+
+The rehearsal generates four invented reports about one fictional exhibit, with the same task ID and evidence across all reports. A network-isolated scripted reviewer receives only the shuffled, opaque packet; its filesystem has `/usr` for Python and no access to the operator directory. It fills the four criteria and exercises `pass`, `reject` and `unreviewed`. The negative control injects the arm map into the packet and is refused before evaluation. The operator hashes the completed decision sheet before joining the fixture map and verifies that the join leaves the sheet unchanged. The separate effort logs survive the join, including time spent on the `unreviewed` report, shared setup, explicit zero and missing time. The seconds are invented and only test record handling. This checks the handoff and rubric structure, not human independence, usability, the ability to infer attribution from real prose, or the artifact lock for the scored trial. The frozen manifest, historical outputs and live ledgers are outside this rehearsal.
+
+**Observed:** three independent batches passed, including the three rejected leak controls. Verification stdout SHA-256: `713ed2881c888a6442adf3ef147bcb727ca792cd8ca222be31f05efa95241b3b`.

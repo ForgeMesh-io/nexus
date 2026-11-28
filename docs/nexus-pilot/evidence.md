@@ -32,6 +32,8 @@
 
 **Synthetic writer crash:** the [offline `SIGKILL` rehearsal](research.md#sqlite-writer-crash-recovery) left a hot rollback journal and changed main-file bytes before commit. A local read-write open recovered the exact committed database and audit, with the earlier stop and revocation still enforced and zero publications. A read-only CLI audit failed closed before recovery; see the [operator procedure](operators.md#stop-back-up-recover-remove).
 
+**Synthetic blind review, unscored:** the [rubric and effort rehearsal](rehearsals/three-arm.md#synthetic-rubric-and-effort-rehearsal-unscored) filled four opaque rows under a sandbox, rejected a packet with an arm map, and joined separate fictional effort records after capturing the decision sheet. No human timing, real attribution test, official score or thaw of the task pools.
+
 Use Linux, Python 3.12+, the optional MCP extra, and an environment with pytest. To reproduce all acceptance cases, also have `ip`, `unshare`, `bwrap`, `sqlite3`, `curl`, OpenCode and Codex. The `uv --offline` steps require the build environment and wheels already in the local cache. Use a disposable Linux VM instead if unprivileged user namespaces are disabled. Run with synthetic inputs; no GitHub or model credentials are used.
 
 ```sh
