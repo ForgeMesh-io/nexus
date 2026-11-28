@@ -252,6 +252,23 @@ All 20 ledgers and restores passed: 2,400 state-changing calls, 600 expected quo
 
 **Decision.** Keep [ADR 001](adr-001-coordination.md) for the small local pilot. The default two-slot policy is a work-admission limit, not a limit on simultaneous requests. At two concurrent calls the measured p95 was 104 ms; at 30, acquiring the writer slot alone took about 2.13 s at p95. The latter is a reason to profile request bursts and constrain admission before raising concurrency, with an agreed response-time budget before deployment. Backup and restore were measured after quiescence and profiles ran in ascending order; the faster later restores do not establish a concurrency benefit. This checks one small fixture and one disk, and does not measure long-running read contention, sustained arrivals, process restart or power-loss recovery, or restoration from off-host storage. No service-level budget has been approved and the release decision remains on hold.
 
+### SQLite writer crash recovery
+
+Run the [crash rehearsal](rehearsals/sqlite-crash.py) under the installed `f84084a` wheel in a fresh private directory on local disk:
+
+```sh
+umask 077
+scratch=$(mktemp -d /path/on/local/disk/nexus-crash.XXXXXX)
+unshare -Urn /path/to/venv/bin/python -I -B docs/nexus-pilot/rehearsals/sqlite-crash.py "$scratch"
+rmdir "$scratch"
+```
+
+On a fresh `example/project` ledger with `publication_limit=0`, the parent commits a lease, an unrelated revocation and a stop. A child calls the real `Pilot.revoke` for the actor holding the lease. Its test-only connection reduces the page cache to force writes into the main file, then pauses once the actor update, lease update and audit insert have executed but before commit. The parent sends `SIGKILL` and checks the exit signal, changed database bytes and rollback journal header before reopening SQLite. This forces the [hot-journal recovery path](https://www.sqlite.org/lockingv3.html#dealing_with_hot_journals) rather than assuming that killing a writer reached disk.
+
+**Observed in 3/3 independent runs on Linux, ext4 on local NVMe, Python 3.12.9, SQLite 3.47.1, journal mode `delete`, no network:** the first read-only CLI audit returned `storage_unavailable`, leaving the 14,856-byte journal intact. A read-write connection ran `integrity_check` (`ok`) and `foreign_key_check` (no rows). SQLite removed the journal and restored the pre-crash main-file bytes exactly. A fresh CLI process returned an identical audit, `unauthorized` for the previously revoked actor and `stopped` for the actor whose revocation was interrupted. That second actor remained unrevoked, its lease remained present with the original expiry, and no publication row existed. Stdout SHA-256: `63708b79a1d2284f7923a80a9c0bbabfb383a97288ac7115e13d969ba3786195`. The negative control (`cache_spill=OFF`) failed the pre-recovery assertion requiring a changed main file and valid journal header. The focused ledger and CLI suite reported `26 passed`.
+
+The [operator procedure](operators.md#stop-back-up-recover-remove) now covers this read-only startup failure. This is a process crash with the OS still running; it does not test power loss, disk failure or a crash during an external publication.
+
 ## Round 19 — 2026-11-26: context admission is not usable context
 
 NotebookLM pointed to [*Lost in the Middle*](https://arxiv.org/abs/2307.03172): evidence position can change retrieval and QA accuracy within the same context limit. That study does not measure concurrent serving or per-request usage. The pinned llama.cpp [server documentation](https://github.com/ggml-org/llama.cpp/blob/8f83d6c/tools/server/README.md#post-completion-given-a-prompt-it-returns-the-predicted-completion) also distinguishes the requested generation limit from the actual count, which may overshoot on a partial multibyte character. The [engine's no-shift guard](https://github.com/ggml-org/llama.cpp/blob/8f83d6c/tools/server/server-context.cpp#L1608-L1616) is a separate capacity check. The concurrent probe therefore measures preflight admission, actual generation and receipt attribution separately, while testing whether each worker can cite its permitted excerpt. A single fact followed by inert padding cannot establish positional robustness or replace OS isolation tests.

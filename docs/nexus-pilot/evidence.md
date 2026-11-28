@@ -30,6 +30,8 @@
 
 **Synthetic storage load:** the [SQLite contention and verified restore rehearsal](research.md#sqlite-contention-and-verified-restore-2026-11-28) measures the installed ledger directly at fixed workload and zero publication quota. It is evidence for the pilot's single-host storage decision, separate from usability, hosted-client integration and the blinded comparison.
 
+**Synthetic writer crash:** the [offline `SIGKILL` rehearsal](research.md#sqlite-writer-crash-recovery) left a hot rollback journal and changed main-file bytes before commit. A local read-write open recovered the exact committed database and audit, with the earlier stop and revocation still enforced and zero publications. A read-only CLI audit failed closed before recovery; see the [operator procedure](operators.md#stop-back-up-recover-remove).
+
 Use Linux, Python 3.12+, the optional MCP extra, and an environment with pytest. To reproduce all acceptance cases, also have `ip`, `unshare`, `bwrap`, `sqlite3`, `curl`, OpenCode and Codex. The `uv --offline` steps require the build environment and wheels already in the local cache. Use a disposable Linux VM instead if unprivileged user namespaces are disabled. Run with synthetic inputs; no GitHub or model credentials are used.
 
 ```sh
