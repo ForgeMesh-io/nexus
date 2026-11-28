@@ -253,3 +253,15 @@ bwrap --unshare-net --clearenv --ro-bind /usr /usr --symlink usr/lib /lib64 \
 Two operator edits removed a byline and an inline credit. The resulting report text matched the expected claims and citations byte for byte. An unedited venue name (`Nexus Room`) also matched byte for byte. Three reports were held out of the fixture packet: an arm-specific citation path, a claim about which arm had seen an updated source, and a worker reference whose deletion could change the claim. These are examples of operator decisions, not an automatic detector or a test of what a human reviewer could infer from style or content.
 
 **Negative control:** changing the edited byline report's citation from line 4 to line 5 failed the exact-text check.
+
+### Synthetic whole-block handoff rehearsal (unscored)
+
+Run the [three-arm block fixture](blind-block-fixture.py) from the repository root. Only the fixture and Python are mounted read-only; its inbox and operator archive live on private temporary storage inside the network-isolated sandbox.
+
+```sh
+bwrap --unshare-net --clearenv --ro-bind /usr /usr --symlink usr/lib /lib64 \
+  --tmpfs /tmp --ro-bind "$PWD/docs/nexus-pilot/rehearsals/blind-block-fixture.py" /fixture.py \
+  -- /usr/bin/python3 -I -B /fixture.py
+```
+
+The control delivers all three invented reports in one local `evaluator.json` with their pinned evidence. In the blocked case, the operator flags a source path that identifies one arm and is part of the exact citation. The whole inbox remains empty (zero of three reports delivered); only the private operator archive gains an `unscored` deviation with the report ID and reason. The original reports, pinned evidence, report-to-arm map, and three resource records match their pre-handoff bytes. With the guard bypassed, the blocked case fails the empty-inbox assertion. This exercises a fixture-local handoff given an operator's decision about attribution; it does not detect attribution automatically or qualify a scored runner or remote reviewer channel.
