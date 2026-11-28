@@ -1,10 +1,11 @@
 """Experimental admission gate, action loop, and candidate local model transport."""
 
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from hashlib import sha256
 from http.client import HTTPConnection, HTTPException
 import json
+from secrets import token_hex
 from socket import SHUT_RDWR
 from threading import Event, Lock, Thread
 from time import monotonic
@@ -302,3 +303,38 @@ def run_arm(base, tasks, sources, workers, prepare, *, ledger=None, credentials=
         outcomes = list(pool.map(participant, range(workers)))
     reports, stops, traces = map(list, zip(*outcomes))
     return reports, budget.snapshot(), stops, traces, budget.usage()
+
+
+def _create(path, record):
+    with open(path, "x", encoding="utf-8") as file:
+        json.dump(record, file, sort_keys=True)
+
+
+def archive(block, evidence, base, operator):
+    """Write the private originals, resources and opaque arm map of one `{arm: run_arm(...)}` block once."""
+    rows, arms = [], {}
+    for arm, (reports, counters, stops, _, usage) in block.items():
+        for report in (report for worker in reports for report in worker):
+            report_id = token_hex(8)
+            arms[report_id] = arm
+            rows.append({"report_id": report_id, "task_id": report["task"], "text": report["report"],
+                         "digest": report["digest"]})
+    resources = {arm: {"counters": counters, "stops": stops, "usage": [asdict(row) for row in usage]}
+                 for arm, (_, counters, stops, _, usage) in block.items()}
+    rows.sort(key=lambda row: row["report_id"])
+    _create(operator / "originals.json", {"reports": rows, "evidence": evidence, "revision": base})
+    _create(operator / "resources.json", resources)
+    _create(operator / "arm-map.json", arms)
+    return [row["report_id"] for row in rows]
+
+
+def deliver(operator, inbox, hold=None):
+    """Deliver the whole blinded block, or record an operator hold and deliver nothing; return reports delivered."""
+    if hold is not None:
+        _create(operator / "deviation.json", {"status": "unscored"} | hold)
+        return 0
+    originals = json.loads((operator / "originals.json").read_bytes())
+    reports = [{key: row[key] for key in ("report_id", "task_id", "text")} for row in originals["reports"]]
+    _create(inbox / "evaluator.json", {"reports": reports, "evidence": originals["evidence"],
+                                       "revision": originals["revision"]})
+    return len(reports)

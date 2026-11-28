@@ -566,3 +566,64 @@ def test_cost_record_keeps_known_input_output_and_subsets_separate():
         budget.model(0, 200, lambda *_: (None, None))
     assert budget.usage() == [Usage(120, 25, cached=82, reasoning=11), Usage(0, 0)]
     assert budget.snapshot()[0] == {"requests": 3, "tools": 0, "tokens": 145, "unknown": 1}
+
+
+@pytest.mark.parametrize("held", [False, True])
+def test_runner_handoff_delivers_whole_block_or_nothing_and_keeps_archives(tmp_path, held):
+    base = "e" * 40
+    tasks = [dict(task="desk", issue=7, title="Desk hours", paths=["notes/desk.txt"])]
+    source = "receipts/nexus/desk.txt" if held else "notes/desk.txt"
+    texts = {"solo": "Doors open at 09:00 (`notes/desk.txt:1`).",
+             "independent": "Use the east entrance (`notes/desk.txt:2`).",
+             "nexus": f"The desk opens at 10:00 (`{source}:1`)."}
+    block = {}
+    for arm, workers in (("solo", 1), ("independent", 2), ("nexus", 2)):
+        ledger, credentials = None, ()
+        if arm == "nexus":
+            ledger = Pilot(tmp_path / "pilot.db")
+            ledger.initialize("example/project", publication_limit=0, active_limit=2, lease_seconds=900)
+            ledger.add_task(base=base, **tasks[0])
+            credentials = [ledger.enroll(f"worker-{i}", f"owner-{i}", "contributor") for i in range(2)]
+
+        def prepare(worker, history, text=texts[arm]):
+            step = len(history) - 1
+            action = ({"op": "stop"} if worker or step > 1 else
+                      [{"op": "start", "task": "desk"}, {"op": "submit", "report": text}][step])
+            return 200, lambda *_: (action, Usage(100, 20))
+
+        block[arm] = gate["run_arm"](base, tasks, {"notes/desk.txt": "a\nb\n"}, workers, prepare,
+                                     ledger=ledger, credentials=credentials)
+    operator, inbox = tmp_path / "operator", tmp_path / "inbox"
+    operator.mkdir(mode=0o700)
+    inbox.mkdir(mode=0o700)
+    evidence = {"notes/desk.txt": ["Doors open at 09:00.", "Use the east entrance."],
+                source: ["The desk opens at 10:00."]}
+    ids = gate["archive"](block, evidence, base, operator)
+    arms = json.loads((operator / "arm-map.json").read_bytes())
+    assert sorted(arms.values()) == ["independent", "nexus", "solo"] and sorted(arms) == sorted(ids)
+    with pytest.raises(FileExistsError):
+        gate["archive"](block, evidence, base, operator)
+    archives = {path: path.read_bytes() for path in operator.iterdir()}
+    hold = None
+    if held:
+        nexus_id = next(i for i, arm in arms.items() if arm == "nexus")
+        hold = {"reason": "attribution_in_citation", "report_id": nexus_id, "source_path": source}
+
+    delivered = gate["deliver"](operator, inbox, hold)
+
+    for path, original in archives.items():
+        assert path.read_bytes() == original, f"Handoff changed {path.name}"
+    resources = json.loads(archives[operator / "resources.json"])
+    assert [resources[arm]["counters"][0]["requests"] for arm in ("solo", "independent", "nexus")] == [3, 3, 3]
+    if held:
+        assert delivered == 0 and not list(inbox.iterdir()), "An irreducible cue must prevent every reviewer artifact"
+        assert json.loads((operator / "deviation.json").read_bytes()) == {"status": "unscored"} | hold
+        return
+    assert delivered == 3 and [path.name for path in inbox.iterdir()] == ["evaluator.json"]
+    packet = json.loads((inbox / "evaluator.json").read_bytes())
+    assert sorted(packet) == ["evidence", "reports", "revision"]
+    assert sorted(row["text"] for row in packet["reports"]) == sorted(texts.values())
+    assert all(set(row) == {"report_id", "task_id", "text"} for row in packet["reports"])
+    assert "nexus" not in json.dumps(packet) and not (operator / "deviation.json").exists()
+    with pytest.raises(FileExistsError):
+        gate["deliver"](operator, inbox)
